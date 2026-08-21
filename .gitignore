@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+.env
+chat_history.db
+vectordb/
+.DS_Store
