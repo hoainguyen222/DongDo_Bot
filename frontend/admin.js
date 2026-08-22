@@ -364,12 +364,44 @@ function openResolveModal() {
         toggleModalLearnFields(true);
     }
 
-    // Tự động trích xuất sạch sẽ câu hỏi khách và câu trả lời CSKH từ danh sách messages
-    const userMsgs = currentActiveCaseMessages.filter((m) => m.role === 'user');
-    const csMsgs = currentActiveCaseMessages.filter((m) => m.role === 'human_cs');
+    let lastUserQ = '';
+    let lastCSA = '';
 
-    const lastUserQ = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].content.trim() : '';
-    const lastCSA = csMsgs.map((m) => m.content.trim()).filter(Boolean).join('\n');
+    // 1. Trích xuất từ data mảng messages hiện tại
+    if (currentActiveCaseMessages && currentActiveCaseMessages.length > 0) {
+        const userMsgs = currentActiveCaseMessages.filter((m) => m.role === 'user');
+        const csMsgs = currentActiveCaseMessages.filter((m) => m.role === 'human_cs');
+
+        if (userMsgs.length > 0) {
+            lastUserQ = userMsgs[userMsgs.length - 1].content.trim();
+        }
+        if (csMsgs.length > 0) {
+            lastCSA = csMsgs.map((m) => m.content.trim()).filter(Boolean).join('\n');
+        }
+    }
+
+    // 2. Dự phòng: Nếu mảng rỗng thì bóc tách trực tiếp từ giao diện DOM (đã lọc sạch timestamp và icon)
+    if (!lastUserQ) {
+        const msgContainer = document.getElementById('detail-messages-container');
+        const userBubbles = msgContainer.querySelectorAll('.msg-bubble.user');
+        if (userBubbles.length > 0) {
+            const clone = userBubbles[userBubbles.length - 1].cloneNode(true);
+            const meta = clone.querySelector('.msg-meta');
+            if (meta) meta.remove();
+            lastUserQ = clone.innerText.replace(/Khách hàng:/g, '').replace(/👤/g, '').trim();
+        }
+    }
+
+    if (!lastCSA) {
+        const msgContainer = document.getElementById('detail-messages-container');
+        const csBubbles = msgContainer.querySelectorAll('.msg-bubble.human_cs');
+        if (csBubbles.length > 0) {
+            const clone = csBubbles[csBubbles.length - 1].cloneNode(true);
+            const meta = clone.querySelector('.msg-meta');
+            if (meta) meta.remove();
+            lastCSA = clone.innerText.replace(/Chuyên viên CSKH:/g, '').replace(/CSKH:/g, '').replace(/👨‍💼/g, '').trim();
+        }
+    }
 
     document.getElementById('modal-extract-q').value = lastUserQ;
     document.getElementById('modal-extract-a').value = lastCSA;

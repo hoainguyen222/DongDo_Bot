@@ -360,12 +360,18 @@ class SystemConfigRequest(BaseModel):
 # ============================================================
 # Frontend Route Handlers
 # ============================================================
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
 @app.api_route("/", methods=["GET", "HEAD"])
 async def serve_client_chat():
     """Phục vụ giao diện Chat Client cho Khách hàng (Không cần đăng nhập)."""
     index_path = os.path.join(frontend_dir, "index.html")
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        return FileResponse(index_path, headers=NO_CACHE_HEADERS)
     return {"message": "Đông Đô CS Chatbot API is running."}
 
 
@@ -374,7 +380,7 @@ async def serve_admin_portal():
     """Phục vụ giao diện Trang Quản trị CSKH & Dạy AI (CSKH Portal)."""
     admin_path = os.path.join(frontend_dir, "admin.html")
     if os.path.exists(admin_path):
-        return FileResponse(admin_path)
+        return FileResponse(admin_path, headers=NO_CACHE_HEADERS)
     return {"message": "Admin portal frontend not found."}
 
 
