@@ -6,7 +6,7 @@ Hỗ trợ cả SQLite (local) và PostgreSQL (Render)
 from datetime import datetime
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from langchain_chroma import Chroma
 
 from config import (
@@ -81,11 +81,9 @@ def learn_from_conversations(qa_pairs: list[dict]):
             all_ids.append(f"{doc_id}_chunk_{j}")
 
     # Load embedding model
-    print(f"🔧 Loading embedding model: {EMBEDDING_MODEL}")
-    embeddings = HuggingFaceEmbeddings(
+    print(f"🔧 Loading FastEmbed model: {EMBEDDING_MODEL}")
+    embeddings = FastEmbedEmbeddings(
         model_name=EMBEDDING_MODEL,
-        model_kwargs={"device": "cpu"},
-        encode_kwargs={"normalize_embeddings": True},
     )
 
     # Append vào ChromaDB hiện tại

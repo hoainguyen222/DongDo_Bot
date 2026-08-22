@@ -13,7 +13,7 @@ LLM_TEMPERATURE = 0.1  # Giữ mềm mại ngôn từ, khóa sáng tạo
 # ============================================================
 # Embedding Configuration
 # ============================================================
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 # ============================================================
 # Paths

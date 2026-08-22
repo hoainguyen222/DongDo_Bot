@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from langchain_anthropic import ChatAnthropic
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
@@ -192,12 +192,10 @@ async def lifespan(app: FastAPI):
     # Init Database (PostgreSQL trên Render, SQLite local)
     init_database()
 
-    # Init Embeddings
-    print(f"🔧 Loading embedding model: {EMBEDDING_MODEL}")
-    embeddings = HuggingFaceEmbeddings(
+    # Init Embeddings (Lightweight FastEmbed ONNX - ~50MB RAM)
+    print(f"🔧 Loading FastEmbed ONNX embedding model: {EMBEDDING_MODEL}")
+    embeddings = FastEmbedEmbeddings(
         model_name=EMBEDDING_MODEL,
-        model_kwargs={"device": "cpu"},
-        encode_kwargs={"normalize_embeddings": True},
     )
 
     # Init Vector Store

@@ -8,7 +8,7 @@ import docx2txt
 from datetime import datetime
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from langchain_chroma import Chroma
 
 from config import (
@@ -80,11 +80,9 @@ def chunk_documents(documents: list[dict]) -> list:
 
 def create_vector_store(chunks: list[str], metadatas: list[dict]):
     """Tạo ChromaDB vector store từ chunks."""
-    print(f"\n🔧 Loading embedding model: {EMBEDDING_MODEL}")
-    embeddings = HuggingFaceEmbeddings(
+    print(f"\n🔧 Loading FastEmbed ONNX model: {EMBEDDING_MODEL}")
+    embeddings = FastEmbedEmbeddings(
         model_name=EMBEDDING_MODEL,
-        model_kwargs={"device": "cpu"},
-        encode_kwargs={"normalize_embeddings": True},
     )
 
     # Xóa vectordb cũ nếu tồn tại (full re-ingest)
