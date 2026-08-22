@@ -178,19 +178,28 @@ def init_database():
 
         conn.commit()
 
-        # Tạo tài khoản admin mặc định nếu chưa có tài khoản nào
-        cursor.execute("SELECT COUNT(*) FROM users")
-        count = cursor.fetchone()[0]
-        if count == 0:
-            pw_hash, salt = _hash_password("DongDo@2026")
-            now = datetime.now().isoformat()
-            cursor.execute(
-                f"INSERT INTO users (username, password_hash, salt, full_name, role, created_at, is_active) "
-                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 1)",
-                ("admin", pw_hash, salt, "Quản trị viên Đông Đô", "admin", now)
-            )
-            conn.commit()
-            print("🔑 Đã tạo tài khoản Admin mặc định: admin / DongDo@2026")
+        # Danh sách các tài khoản nội bộ mặc định
+        default_accounts = [
+            ("admin", "DongDo@2026", "Quản trị viên Đông Đô", "admin"),
+            ("cskh01", "DongDo@123", "Chuyên viên CSKH 01", "user"),
+            ("cskh02", "DongDo@123", "Chuyên viên CSKH 02", "user"),
+            ("cskh03", "DongDo@123", "Chuyên viên CSKH 03", "user"),
+            ("cskh04", "DongDo@123", "Chuyên viên CSKH 04", "user"),
+            ("cskh05", "DongDo@123", "Chuyên viên CSKH 05", "user"),
+        ]
+
+        now = datetime.now().isoformat()
+        for uname, pwd, fname, role in default_accounts:
+            cursor.execute(f"SELECT COUNT(*) FROM users WHERE username = {ph}", (uname,))
+            if cursor.fetchone()[0] == 0:
+                pw_hash, salt = _hash_password(pwd)
+                cursor.execute(
+                    f"INSERT INTO users (username, password_hash, salt, full_name, role, created_at, is_active) "
+                    f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 1)",
+                    (uname, pw_hash, salt, fname, role, now)
+                )
+                conn.commit()
+                print(f"🔑 Đã khởi tạo tài khoản mặc định: {uname}")
 
     db_type = "PostgreSQL" if USE_POSTGRES else "SQLite"
     print(f"✅ Database initialized ({db_type})")
