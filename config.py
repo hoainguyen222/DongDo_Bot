@@ -21,7 +21,6 @@ EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOCUMENTS_DIR = os.path.join(BASE_DIR, "tailieu")
 VECTORDB_DIR = os.path.join(BASE_DIR, "vectordb")
-SQLITE_DB_PATH = os.path.join(BASE_DIR, "chat_history.db")
 
 # ============================================================
 # ChromaDB

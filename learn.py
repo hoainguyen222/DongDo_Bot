@@ -1,8 +1,8 @@
 """
 Đông Đô CS Chatbot - Continuous Learning Pipeline
 Đọc chat history chưa học → lọc Q&A hợp lệ → embedding → append vào ChromaDB
+Hỗ trợ cả SQLite (local) và PostgreSQL (Render)
 """
-import sqlite3
 from datetime import datetime
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -10,62 +10,19 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 
 from config import (
-    SQLITE_DB_PATH,
     VECTORDB_DIR,
     EMBEDDING_MODEL,
     CHROMA_COLLECTION_NAME,
     CHUNK_SIZE,
     CHUNK_OVERLAP,
 )
+from database import get_unlearned_conversations, mark_as_learned
 
 # Câu fallback - các Q&A chứa câu này sẽ bị loại bỏ (bot không biết trả lời)
 FALLBACK_PHRASES = [
     "Vui lòng đợi trong giây lát, chuyên viên CSKH của Đông Đô sẽ trực tiếp tham gia cuộc trò chuyện",
     "không có thông tin về vấn đề này",
 ]
-
-
-def get_unlearned_conversations() -> list[dict]:
-    """Lấy các cặp Q&A chưa được học từ SQLite."""
-    conn = sqlite3.connect(SQLITE_DB_PATH)
-    cursor = conn.cursor()
-
-    # Lấy tất cả messages chưa học, sắp xếp theo session và thời gian
-    cursor.execute("""
-        SELECT id, session_id, role, content, timestamp
-        FROM chat_history
-        WHERE is_learned = 0
-        ORDER BY session_id, timestamp
-    """)
-    rows = cursor.fetchall()
-    conn.close()
-
-    if not rows:
-        return []
-
-    # Ghép thành các cặp Q&A (user → assistant)
-    qa_pairs = []
-    i = 0
-    while i < len(rows) - 1:
-        current = rows[i]
-        next_row = rows[i + 1]
-
-        # Kiểm tra cặp user → assistant trong cùng session
-        if (current[2] == "user" and next_row[2] == "assistant"
-                and current[1] == next_row[1]):
-            qa_pairs.append({
-                "user_id": current[0],
-                "assistant_id": next_row[0],
-                "session_id": current[1],
-                "question": current[3],
-                "answer": next_row[3],
-                "timestamp": current[4],
-            })
-            i += 2
-        else:
-            i += 1
-
-    return qa_pairs
 
 
 def filter_valid_qa(qa_pairs: list[dict]) -> list[dict]:
@@ -145,25 +102,6 @@ def learn_from_conversations(qa_pairs: list[dict]):
     )
 
     return len(all_chunks)
-
-
-def mark_as_learned(qa_pairs: list[dict]):
-    """Đánh dấu các messages đã được học trong SQLite."""
-    conn = sqlite3.connect(SQLITE_DB_PATH)
-    cursor = conn.cursor()
-
-    ids_to_update = []
-    for qa in qa_pairs:
-        ids_to_update.extend([qa["user_id"], qa["assistant_id"]])
-
-    placeholders = ",".join(["?" for _ in ids_to_update])
-    cursor.execute(
-        f"UPDATE chat_history SET is_learned = 1 WHERE id IN ({placeholders})",
-        ids_to_update,
-    )
-
-    conn.commit()
-    conn.close()
 
 
 def main():

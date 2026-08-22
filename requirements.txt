@@ -9,3 +9,4 @@ chromadb
 sentence-transformers
 docx2txt
 python-multipart
+psycopg2-binary

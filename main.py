@@ -4,7 +4,6 @@ RAG Chat API + Conversation Memory + Chat History Storage
 """
 import os
 import uuid
-import sqlite3
 from datetime import datetime
 from contextlib import asynccontextmanager
 
@@ -18,7 +17,6 @@ from langchain_anthropic import ChatAnthropic
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from config import (
     ANTHROPIC_API_KEY,
@@ -26,13 +24,13 @@ from config import (
     LLM_TEMPERATURE,
     EMBEDDING_MODEL,
     VECTORDB_DIR,
-    SQLITE_DB_PATH,
     CHROMA_COLLECTION_NAME,
     RETRIEVER_K,
     MEMORY_WINDOW_SIZE,
     SYSTEM_PROMPT,
     BASE_DIR,
 )
+from database import init_database, save_message, get_session_history
 
 # ============================================================
 # Global State
@@ -42,46 +40,6 @@ llm = None
 embeddings = None
 # In-memory conversation history per session_id
 conversation_memories: dict[str, list] = {}
-
-
-# ============================================================
-# SQLite Setup
-# ============================================================
-def init_database():
-    """Khởi tạo SQLite database cho chat history."""
-    conn = sqlite3.connect(SQLITE_DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS chat_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id TEXT NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            timestamp TEXT NOT NULL,
-            is_learned INTEGER DEFAULT 0
-        )
-    """)
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_session_id ON chat_history(session_id)
-    """)
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_is_learned ON chat_history(is_learned)
-    """)
-    conn.commit()
-    conn.close()
-    print("✅ SQLite database initialized")
-
-
-def save_message(session_id: str, role: str, content: str):
-    """Lưu một message vào SQLite."""
-    conn = sqlite3.connect(SQLITE_DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO chat_history (session_id, role, content, timestamp, is_learned) VALUES (?, ?, ?, ?, 0)",
-        (session_id, role, content, datetime.now().isoformat()),
-    )
-    conn.commit()
-    conn.close()
 
 
 # ============================================================
@@ -177,7 +135,7 @@ Hãy thực hiện đúng 2 bước: Xin lỗi + Chuyển giao chuyên viên CSK
     add_to_conversation(session_id, "user", query)
     add_to_conversation(session_id, "assistant", reply)
 
-    # Step 7: Save to SQLite for learning
+    # Step 7: Save to database for learning
     save_message(session_id, "user", query)
     save_message(session_id, "assistant", reply)
 
@@ -194,7 +152,7 @@ async def lifespan(app: FastAPI):
 
     print("🚀 Khởi tạo Đông Đô CS Chatbot...")
 
-    # Init SQLite
+    # Init Database (PostgreSQL trên Render, SQLite local)
     init_database()
 
     # Init Embeddings
@@ -341,21 +299,10 @@ async def chat(request: ChatRequest):
 @app.get("/history/{session_id}")
 async def get_history(session_id: str):
     """Lấy lịch sử chat của một session."""
-    conn = sqlite3.connect(SQLITE_DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT role, content, timestamp FROM chat_history WHERE session_id = ? ORDER BY timestamp",
-        (session_id,),
-    )
-    rows = cursor.fetchall()
-    conn.close()
-
+    messages = get_session_history(session_id)
     return {
         "session_id": session_id,
-        "messages": [
-            {"role": row[0], "content": row[1], "timestamp": row[2]}
-            for row in rows
-        ],
+        "messages": messages,
     }
 
 
