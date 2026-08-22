@@ -669,7 +669,33 @@ async def api_set_learning_settings(
     return {
         "success": True,
         "auto_learning_enabled": req.auto_learning_enabled,
-        "message": "Đã cập nhật chế độ nạp tri thức thành công!",
+        "message": f"Đã {'BẬT' if req.auto_learning_enabled else 'TẮT'} chế độ tự động nạp tri thức vào ChromaDB.",
+    }
+
+
+@app.post("/api/admin/learning/reset")
+async def api_reset_learned_knowledge(user: dict = Depends(get_current_user)):
+    """Xóa toàn bộ các tri thức CSKH đã nạp vào ChromaDB và CSDL."""
+    global vector_store
+    deleted_count = 0
+    if vector_store:
+        try:
+            data = vector_store.get()
+            ids_to_delete = [
+                doc_id for doc_id, meta in zip(data["ids"], data["metadatas"])
+                if (meta and meta.get("source") == "CSKH_Learning") or str(doc_id).startswith("learned_qa")
+            ]
+            if ids_to_delete:
+                vector_store.delete(ids=ids_to_delete)
+                deleted_count = len(ids_to_delete)
+        except Exception as e:
+            print(f"Error resetting chromadb: {e}")
+
+    clear_learned_knowledge()
+    return {
+        "success": True,
+        "deleted_count": deleted_count,
+        "message": f"Đã xóa thành công {deleted_count} mẩu tri thức CSKH khỏi ChromaDB và đặt lại toàn bộ hàng đợi tri thức!",
     }
 
 

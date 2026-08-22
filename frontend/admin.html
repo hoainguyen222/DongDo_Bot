@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/admin.css?v=7.0.0">
+    <link rel="stylesheet" href="/static/admin.css?v=8.0.0">
 </head>
 
 <body>
@@ -243,8 +243,9 @@
                     </div>
                 </div>
 
-                <div class="learning-list-header">
-                    <h3>Danh sách mẩu Q&amp;A đang chờ phê duyệt (<span id="stat-pending-num">0</span>)</h3>
+                <div class="learning-list-header" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; margin-bottom: 0.8rem;">
+                    <h3 style="margin: 0;">Danh sách mẩu Q&amp;A đang chờ phê duyệt (<span id="stat-pending-num">0</span>)</h3>
+                    <button type="button" class="btn-reset-learning" onclick="resetLearnedKnowledge()" style="padding: 6px 14px; font-size: 0.8rem; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; border-radius: 8px; cursor: pointer; transition: all 0.2s;">🗑️ Xóa / Reset Tri Thức Đã Nạp</button>
                 </div>
 
                 <div class="learning-list" id="learning-list-container">
@@ -442,7 +443,7 @@
         </div>
     </div>
 
-    <script src="/static/admin.js?v=7.0.0"></script>
+    <script src="/static/admin.js?v=8.0.0"></script>
 </body>
 
 </html>

@@ -636,6 +636,29 @@ async function rejectLearningItem(itemId) {
     }
 }
 
+async function resetLearnedKnowledge() {
+    if (!confirm('⚠️ CẢNH BÁO: Bạn có chắc chắn muốn XÓA TOÀN BỘ các câu hỏi & câu trả lời do CSKH đã nạp vào ChromaDB để AI quay về trạng thái tài liệu ban đầu không?')) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/learning/reset', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert(data.message || 'Đã xóa toàn bộ tri thức CSKH thành công!');
+            loadPendingLearning();
+            loadKnowledgeSummary();
+        } else {
+            alert('Lỗi: ' + (data.detail || 'Không thể reset'));
+        }
+    } catch (e) {
+        alert('Lỗi kết nối: ' + e.message);
+    }
+}
+
 // ============================================================
 // TAB 3: Knowledge Base Manager
 // ============================================================

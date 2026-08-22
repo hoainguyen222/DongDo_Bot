@@ -854,6 +854,17 @@ def mark_learning_item_status(item_id: int, status: str, approved_by: str = None
         conn.commit()
 
 
+def clear_learned_knowledge():
+    """Xóa toàn bộ bản ghi tri thức đã học trong learning_queue và reset flag."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM learning_queue")
+        cursor.execute("UPDATE chat_history SET is_learned = 0")
+        conn.commit()
+    return True
+
+
+
 # ============================================================
 # Analytics Operations
 # ============================================================
