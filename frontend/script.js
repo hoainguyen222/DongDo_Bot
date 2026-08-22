@@ -1,26 +1,42 @@
 /**
  * Đông Đô CS Chatbot - Client-side Logic
- * Handles chat interaction, API calls, session management
+ * Handles chat interaction, Authentication, API calls, session management
  */
 
 (function () {
     'use strict';
 
     // ============================================================
-    // Configuration
+    // Configuration & API Endpoints
     // ============================================================
     const API_BASE = window.location.origin;
     const API_CHAT = `${API_BASE}/chat`;
+    const API_LOGIN = `${API_BASE}/auth/login`;
+    const API_ME = `${API_BASE}/auth/me`;
+    const API_LOGOUT = `${API_BASE}/auth/logout`;
+
+    const TOKEN_KEY = 'dongdo_auth_token';
 
     // ============================================================
     // State
     // ============================================================
     let sessionId = generateSessionId();
     let isWaiting = false;
+    let currentUser = null;
 
     // ============================================================
     // DOM Elements
     // ============================================================
+    const loginOverlay = document.getElementById('loginOverlay');
+    const loginForm = document.getElementById('loginForm');
+    const loginUsernameInput = document.getElementById('loginUsername');
+    const loginPasswordInput = document.getElementById('loginPassword');
+    const loginError = document.getElementById('loginError');
+    const btnLoginSubmit = document.getElementById('btnLoginSubmit');
+
+    const userNameDisplay = document.getElementById('userName');
+    const btnLogout = document.getElementById('btnLogout');
+
     const chatMessages = document.getElementById('chatMessages');
     const welcomeScreen = document.getElementById('welcomeScreen');
     const messageInput = document.getElementById('messageInput');
@@ -35,9 +51,144 @@
         return 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
     }
 
+    function getToken() {
+        return localStorage.getItem(TOKEN_KEY);
+    }
+
+    function setToken(token) {
+        if (token) {
+            localStorage.setItem(TOKEN_KEY, token);
+        } else {
+            localStorage.removeItem(TOKEN_KEY);
+        }
+    }
+
+    function getAuthHeaders() {
+        const token = getToken();
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        return headers;
+    }
+
+    // ============================================================
+    // Authentication Functions
+    // ============================================================
+    async function checkAuth() {
+        const token = getToken();
+        if (!token) {
+            showLoginModal();
+            return false;
+        }
+
+        try {
+            const res = await fetch(API_ME, {
+                headers: getAuthHeaders(),
+            });
+
+            if (res.ok) {
+                const user = await res.json();
+                currentUser = user;
+                onLoginSuccess(user);
+                return true;
+            } else {
+                setToken(null);
+                showLoginModal();
+                return false;
+            }
+        } catch (err) {
+            console.error('Auth verification error:', err);
+            showLoginModal();
+            return false;
+        }
+    }
+
+    function showLoginModal(errMsg = '') {
+        loginOverlay.classList.remove('hidden');
+        if (errMsg) {
+            loginError.textContent = errMsg;
+            loginError.classList.add('visible');
+        } else {
+            loginError.classList.remove('visible');
+            loginError.textContent = '';
+        }
+        setTimeout(() => loginUsernameInput.focus(), 100);
+    }
+
+    function hideLoginModal() {
+        loginOverlay.classList.add('hidden');
+        loginError.classList.remove('visible');
+        loginError.textContent = '';
+        messageInput.focus();
+    }
+
+    function onLoginSuccess(user) {
+        currentUser = user;
+        userNameDisplay.textContent = user.full_name || user.username;
+        hideLoginModal();
+    }
+
+    async function handleLoginSubmit(e) {
+        e.preventDefault();
+        const username = loginUsernameInput.value.trim();
+        const password = loginPasswordInput.value;
+
+        if (!username || !password) {
+            showLoginModal('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.');
+            return;
+        }
+
+        btnLoginSubmit.disabled = true;
+        btnLoginSubmit.innerHTML = '<span>Đang đăng nhập...</span>';
+        loginError.classList.remove('visible');
+
+        try {
+            const res = await fetch(API_LOGIN, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.detail || 'Đăng nhập thất bại.');
+            }
+
+            setToken(data.token);
+            onLoginSuccess(data);
+            loginPasswordInput.value = '';
+        } catch (err) {
+            showLoginModal(err.message || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
+        } finally {
+            btnLoginSubmit.disabled = false;
+            btnLoginSubmit.innerHTML = '<span>Đăng nhập hệ thống</span>';
+        }
+    }
+
+    async function handleLogout() {
+        try {
+            await fetch(API_LOGOUT, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+            });
+        } catch (err) {
+            console.warn('Logout API error:', err);
+        } finally {
+            setToken(null);
+            currentUser = null;
+            userNameDisplay.textContent = 'Chưa đăng nhập';
+            showLoginModal();
+        }
+    }
+
     // ============================================================
     // Event Listeners
     // ============================================================
+    loginForm.addEventListener('submit', handleLoginSubmit);
+    btnLogout.addEventListener('click', handleLogout);
+
     messageInput.addEventListener('input', () => {
         autoResize(messageInput);
         updateCharCount();
@@ -78,11 +229,16 @@
     });
 
     // ============================================================
-    // Core Functions
+    // Core Chat Functions
     // ============================================================
     async function sendMessage() {
         const message = messageInput.value.trim();
         if (!message || isWaiting) return;
+
+        if (!getToken()) {
+            showLoginModal('Vui lòng đăng nhập để gửi tin nhắn.');
+            return;
+        }
 
         // Hide welcome screen
         welcomeScreen.classList.add('hidden');
@@ -103,7 +259,7 @@
         try {
             const response = await fetch(API_CHAT, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     session_id: sessionId,
                     message: message,
@@ -112,6 +268,12 @@
 
             // Remove typing indicator
             removeTypingIndicator(typingEl);
+
+            if (response.status === 401) {
+                setToken(null);
+                showLoginModal('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+                return;
+            }
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -173,7 +335,6 @@
     }
 
     function formatMessage(text) {
-        // Basic markdown-like formatting
         let html = text;
 
         // Escape HTML
@@ -288,8 +449,6 @@
     // ============================================================
     // Init
     // ============================================================
-    messageInput.focus();
-    console.log('🚀 Đông Đô CS Chatbot initialized');
-    console.log(`📡 API: ${API_CHAT}`);
-    console.log(`🔑 Session: ${sessionId}`);
+    checkAuth();
+    console.log('🚀 Đông Đô CS Chatbot initialized with Authentication');
 })();

@@ -1,13 +1,13 @@
 """
 Đông Đô CS Chatbot - FastAPI Main Server
-RAG Chat API + Conversation Memory + Chat History Storage
+RAG Chat API + Authentication + Conversation Memory + Chat History Storage
 """
 import os
 import uuid
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -30,7 +30,15 @@ from config import (
     SYSTEM_PROMPT,
     BASE_DIR,
 )
-from database import init_database, save_message, get_session_history
+from database import (
+    init_database,
+    save_message,
+    get_session_history,
+    verify_user,
+    create_session,
+    verify_session,
+    delete_session,
+)
 
 # ============================================================
 # Global State
@@ -43,6 +51,36 @@ conversation_memories: dict[str, list] = {}
 
 
 # ============================================================
+# Auth Dependency
+# ============================================================
+async def get_current_user(
+    authorization: str | None = Header(default=None),
+    x_auth_token: str | None = Header(default=None),
+) -> dict:
+    """Xác thực người dùng dựa trên Session Token."""
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+    elif x_auth_token:
+        token = x_auth_token
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Vui lòng đăng nhập để sử dụng hệ thống."
+        )
+
+    user = verify_session(token)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại."
+        )
+
+    return {**user, "token": token}
+
+
+# ============================================================
 # Conversation Memory (per session)
 # ============================================================
 def get_conversation_history(session_id: str) -> list:
@@ -50,7 +88,6 @@ def get_conversation_history(session_id: str) -> list:
     if session_id not in conversation_memories:
         conversation_memories[session_id] = []
     history = conversation_memories[session_id]
-    # Giữ tối đa MEMORY_WINDOW_SIZE * 2 messages (mỗi turn = 1 user + 1 assistant)
     max_messages = MEMORY_WINDOW_SIZE * 2
     if len(history) > max_messages:
         history = history[-max_messages:]
@@ -96,7 +133,7 @@ def retrieve_context(query: str) -> tuple[str, list[str]]:
 
 
 async def generate_response(
-    query: str, session_id: str
+    query: str, session_id: str, username: str = None
 ) -> tuple[str, list[str]]:
     """Pipeline chính: Retrieve → Inject Context → LLM → Response."""
     # Step 1: Retrieve relevant context
@@ -136,8 +173,8 @@ Hãy thực hiện đúng 2 bước: Xin lỗi + Chuyển giao chuyên viên CSK
     add_to_conversation(session_id, "assistant", reply)
 
     # Step 7: Save to database for learning
-    save_message(session_id, "user", query)
-    save_message(session_id, "assistant", reply)
+    save_message(session_id, "user", query, username=username)
+    save_message(session_id, "assistant", reply, username=username)
 
     return reply, sources
 
@@ -223,6 +260,18 @@ if os.path.exists(frontend_dir):
 # ============================================================
 # Pydantic Models
 # ============================================================
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    token: str
+    username: str
+    full_name: str
+    role: str
+
+
 class ChatRequest(BaseModel):
     session_id: str | None = None
     message: str
@@ -235,7 +284,46 @@ class ChatResponse(BaseModel):
 
 
 # ============================================================
-# API Endpoints
+# Authentication Endpoints
+# ============================================================
+@app.post("/auth/login", response_model=LoginResponse)
+async def login(req: LoginRequest):
+    """Xác thực đăng nhập tài khoản nội bộ."""
+    user = verify_user(req.username, req.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Tên đăng nhập hoặc mật khẩu không chính xác."
+        )
+
+    token = create_session(user["username"])
+    return LoginResponse(
+        token=token,
+        username=user["username"],
+        full_name=user["full_name"],
+        role=user["role"],
+    )
+
+
+@app.get("/auth/me")
+async def get_me(user: dict = Depends(get_current_user)):
+    """Lấy thông tin người dùng hiện tại từ session token."""
+    return {
+        "username": user["username"],
+        "full_name": user["full_name"],
+        "role": user["role"],
+    }
+
+
+@app.post("/auth/logout")
+async def logout(user: dict = Depends(get_current_user)):
+    """Đăng xuất và hủy token."""
+    delete_session(user["token"])
+    return {"message": "Đã đăng xuất thành công."}
+
+
+# ============================================================
+# Main Endpoints
 # ============================================================
 @app.get("/")
 async def serve_frontend():
@@ -258,9 +346,9 @@ async def health_check():
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
     """
-    Chat endpoint chính.
+    Chat endpoint chính (Yêu cầu Đăng nhập).
     Nhận message từ user, truy xuất Vector DB, inject vào System Prompt, gọi LLM.
     """
     if not request.message or not request.message.strip():
@@ -278,13 +366,13 @@ async def chat(request: ChatRequest):
             detail="Vector store chưa được khởi tạo. Hãy chạy: python ingest.py",
         )
 
-    # Auto-generate session_id nếu không có
     session_id = request.session_id or str(uuid.uuid4())
 
     try:
         reply, sources = await generate_response(
             query=request.message.strip(),
             session_id=session_id,
+            username=user["username"],
         )
         return ChatResponse(
             reply=reply,
@@ -297,8 +385,8 @@ async def chat(request: ChatRequest):
 
 
 @app.get("/history/{session_id}")
-async def get_history(session_id: str):
-    """Lấy lịch sử chat của một session."""
+async def get_history(session_id: str, user: dict = Depends(get_current_user)):
+    """Lấy lịch sử chat của một session (Yêu cầu Đăng nhập)."""
     messages = get_session_history(session_id)
     return {
         "session_id": session_id,
