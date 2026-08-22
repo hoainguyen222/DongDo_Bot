@@ -22,6 +22,7 @@ from database import get_unlearned_conversations, mark_as_learned
 FALLBACK_PHRASES = [
     "Vui lòng đợi trong giây lát, chuyên viên CSKH của Đông Đô sẽ trực tiếp tham gia cuộc trò chuyện",
     "không có thông tin về vấn đề này",
+    "chưa có thông tin chi tiết về nội dung này",
 ]
 
 
