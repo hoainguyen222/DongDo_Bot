@@ -1439,9 +1439,54 @@ input:checked + .slider:before {
     cursor: pointer;
 }
 
+.teach-ai-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-top: 14px;
+}
+
+.teach-ai-checkbox-wrapper {
+    margin-bottom: 10px;
+}
+
+.custom-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    user-select: none;
+}
+
+.custom-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #10b981;
+    cursor: pointer;
+}
+
+.modal-auto-hint {
+    font-size: 0.78rem;
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    margin-bottom: 14px;
+    line-height: 1.4;
+}
+
+.modal-learn-fields {
+    transition: all var(--transition-normal);
+}
+
 .empty-state {
     text-align: center;
     padding: 30px 20px;
     color: var(--text-tertiary);
     font-size: 0.85rem;
 }
+

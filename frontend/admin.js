@@ -261,11 +261,15 @@ async function selectCase(sessionId) {
     loadActiveCaseMessages(sessionId);
 }
 
+let currentActiveCaseMessages = [];
+
 async function loadActiveCaseMessages(sessionId) {
     try {
         const res = await fetch(`/history/${sessionId}`);
         if (!res.ok) return;
         const data = await res.json();
+
+        currentActiveCaseMessages = data.messages || [];
 
         document.getElementById('detail-session-id').innerText = `Session: ${sessionId.substring(0, 18)}...`;
         document.getElementById('detail-status-tag').className = `status-badge ${data.status}`;
@@ -353,12 +357,37 @@ function openResolveModal() {
     if (!activeSessionId) return;
     document.getElementById('resolve-modal').classList.remove('hidden');
 
-    // Pre-fill question from latest user message if available
-    const msgContainer = document.getElementById('detail-messages-container');
-    const userBubbles = msgContainer.querySelectorAll('.msg-bubble.user');
-    if (userBubbles.length > 0) {
-        const lastUserTxt = userBubbles[userBubbles.length - 1].innerText.replace(/Khách hàng:/g, '').trim();
-        document.getElementById('modal-extract-q').value = lastUserTxt;
+    // Reset checkbox to checked
+    const enableLearnChk = document.getElementById('modal-enable-learn');
+    if (enableLearnChk) {
+        enableLearnChk.checked = true;
+        toggleModalLearnFields(true);
+    }
+
+    // Tự động trích xuất sạch sẽ câu hỏi khách và câu trả lời CSKH từ danh sách messages
+    const userMsgs = currentActiveCaseMessages.filter((m) => m.role === 'user');
+    const csMsgs = currentActiveCaseMessages.filter((m) => m.role === 'human_cs');
+
+    const lastUserQ = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].content.trim() : '';
+    const lastCSA = csMsgs.map((m) => m.content.trim()).filter(Boolean).join('\n');
+
+    document.getElementById('modal-extract-q').value = lastUserQ;
+    document.getElementById('modal-extract-a').value = lastCSA;
+}
+
+function toggleModalLearnFields(isChecked) {
+    const fields = document.getElementById('modal-learn-fields');
+    const hint = document.getElementById('modal-auto-hint');
+    const submitBtn = document.getElementById('btn-submit-resolve');
+
+    if (isChecked) {
+        if (fields) fields.style.display = 'block';
+        if (hint) hint.style.display = 'block';
+        if (submitBtn) submitBtn.innerText = 'Hoàn Tất Đóng Case & Nạp Tri Thức 🚀';
+    } else {
+        if (fields) fields.style.display = 'none';
+        if (hint) hint.style.display = 'none';
+        if (submitBtn) submitBtn.innerText = 'Đóng Case (Không nạp tri thức)';
     }
 }
 
@@ -369,8 +398,14 @@ function closeResolveModal() {
 async function submitResolveCase() {
     if (!activeSessionId) return;
     const note = document.getElementById('modal-resolve-note').value.trim();
-    const q = document.getElementById('modal-extract-q').value.trim();
-    const a = document.getElementById('modal-extract-a').value.trim();
+    const enableLearn = document.getElementById('modal-enable-learn').checked;
+
+    let q = '';
+    let a = '';
+    if (enableLearn) {
+        q = document.getElementById('modal-extract-q').value.trim();
+        a = document.getElementById('modal-extract-a').value.trim();
+    }
     const agentName = currentAgent.full_name || currentAgent.username || 'Chuyên viên CSKH';
 
     try {

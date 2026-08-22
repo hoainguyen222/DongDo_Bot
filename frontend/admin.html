@@ -410,27 +410,38 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Ghi chú giải quyết của Chuyên viên CSKH:</label>
-                    <input type="text" id="modal-resolve-note" placeholder="Ví dụ: Đã tư vấn khách nạp tiền qua DDP Invest thành công..." />
+                    <label>Ghi chú giải quyết của Chuyên viên CSKH (Tùy chọn):</label>
+                    <input type="text" id="modal-resolve-note" placeholder="Ví dụ: Đã giải đáp thắc mắc về crypto và hàng hóa..." />
                 </div>
 
-                <hr class="modal-divider" />
+                <div class="teach-ai-card">
+                    <div class="teach-ai-checkbox-wrapper">
+                        <label class="custom-checkbox">
+                            <input type="checkbox" id="modal-enable-learn" checked onchange="toggleModalLearnFields(this.checked)">
+                            <span class="checkmark"></span>
+                            <span class="label-text">🧠 <strong>Dạy bài học này cho AI</strong> để tự trả lời ở các lần sau</span>
+                        </label>
+                    </div>
 
-                <h4>🧠 Bài Học Tri Thức Cho AI (Tùy chọn)</h4>
-                <p class="subtext">Nhập câu hỏi &amp; câu trả lời chuẩn xác của case này để nạp vào kho tri thức giúp AI tự trả lời ở các lần sau:</p>
+                    <div class="modal-auto-hint" id="modal-auto-hint">
+                        ✨ <em>Hệ thống đã tự động trích xuất câu hỏi &amp; câu trả lời từ đoạn chat. Bạn chỉ cần xem lại và bấm Hoàn tất!</em>
+                    </div>
 
-                <div class="form-group">
-                    <label>Câu hỏi của Khách hàng:</label>
-                    <input type="text" id="modal-extract-q" placeholder="Ví dụ: Quả cam có giá bao nhiêu?" />
-                </div>
-                <div class="form-group">
-                    <label>Câu trả lời chuẩn của CSKH:</label>
-                    <textarea id="modal-extract-a" rows="4" placeholder="Ví dụ: Quả cam có giá 12k nhé anh/chị."></textarea>
+                    <div id="modal-learn-fields" class="modal-learn-fields">
+                        <div class="form-group">
+                            <label>❓ Câu hỏi của Khách hàng:</label>
+                            <input type="text" id="modal-extract-q" placeholder="Câu hỏi từ khách hàng..." />
+                        </div>
+                        <div class="form-group">
+                            <label>💡 Câu trả lời chuẩn của CSKH:</label>
+                            <textarea id="modal-extract-a" rows="4" placeholder="Câu trả lời chuẩn xác để AI học..."></textarea>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeResolveModal()">Hủy</button>
-                <button class="btn-success" onclick="submitResolveCase()">Hoàn Tất Đóng Case &amp; Gửi Tri Thức 🚀</button>
+                <button class="btn-success" id="btn-submit-resolve" onclick="submitResolveCase()">Hoàn Tất Đóng Case &amp; Nạp Tri Thức 🚀</button>
             </div>
         </div>
     </div>
