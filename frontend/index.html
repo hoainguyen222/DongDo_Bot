@@ -10,72 +10,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=3.0">
+    <link rel="stylesheet" href="/static/style.css?v=4.0">
 </head>
 
 <body>
-    <!-- Login Modal Overlay -->
-    <div class="login-overlay" id="loginOverlay">
-        <div class="login-card">
-            <div class="login-brand">
-                <div class="logo-icon large">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-                        <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="url(#loginGrad1)" opacity="0.9" />
-                        <path d="M2 17L12 22L22 17" stroke="url(#loginGrad2)" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" />
-                        <path d="M2 12L12 17L22 12" stroke="url(#loginGrad2)" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" />
-                        <defs>
-                            <linearGradient id="loginGrad1" x1="2" y1="2" x2="22" y2="12">
-                                <stop offset="0%" stop-color="#60a5fa" />
-                                <stop offset="100%" stop-color="#a78bfa" />
-                            </linearGradient>
-                            <linearGradient id="loginGrad2" x1="2" y1="12" x2="22" y2="22">
-                                <stop offset="0%" stop-color="#60a5fa" />
-                                <stop offset="100%" stop-color="#a78bfa" />
-                            </linearGradient>
-                        </defs>
-                    </svg>
-                </div>
-                <h2>Đông Đô Partners</h2>
-                <p class="login-subtitle">Hệ thống Tư vấn & Chăm sóc Khách hàng</p>
-            </div>
-
-            <form class="login-form" id="loginForm">
-                <div class="form-group">
-                    <label for="loginUsername">Tên đăng nhập</label>
-                    <div class="input-icon-wrapper">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                            <circle cx="12" cy="7" r="4" />
-                        </svg>
-                        <input type="text" id="loginUsername" placeholder="Nhập username" required autocomplete="username">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="loginPassword">Mật khẩu</label>
-                    <div class="input-icon-wrapper">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                        </svg>
-                        <input type="password" id="loginPassword" placeholder="Nhập mật khẩu" required autocomplete="current-password">
-                    </div>
-                </div>
-
-                <div class="login-error" id="loginError"></div>
-
-                <button type="submit" class="btn-login" id="btnLoginSubmit">
-                    <span>Đăng nhập hệ thống</span>
-                </button>
-            </form>
-            <div class="login-footer-note">
-                🔒 Vui lòng liên hệ Admin để được cấp tài khoản truy cập
-            </div>
-        </div>
-    </div>
-
     <!-- Main Chat Container -->
     <div class="chat-container" id="chatContainer">
         <!-- Header -->
@@ -111,22 +49,14 @@
                 </div>
 
                 <div class="header-actions">
-                    <div class="user-pill" id="userPill">
-                        <span class="user-avatar" id="userAvatar">👤</span>
-                        <span class="user-name" id="userName">Đang tải...</span>
-                    </div>
+                    <a href="/admin" class="btn-cskh-portal" title="Truy cập Cổng Quản trị & CSKH Đông Đô" target="_blank">
+                        <span class="icon">🔐</span>
+                        <span class="text">Cổng CSKH</span>
+                    </a>
                     <button class="btn-header" id="btnNewChat" title="Cuộc trò chuyện mới">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                             stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 5V19M5 12H19" />
-                        </svg>
-                    </button>
-                    <button class="btn-header btn-logout" id="btnLogout" title="Đăng xuất">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                            <polyline points="16 17 21 12 16 7" />
-                            <line x1="21" y1="12" x2="9" y2="12" />
                         </svg>
                     </button>
                 </div>
@@ -183,7 +113,7 @@
         </footer>
     </div>
 
-    <script src="/static/script.js?v=3.0"></script>
+    <script src="/static/script.js?v=4.0"></script>
 </body>
 
 </html>

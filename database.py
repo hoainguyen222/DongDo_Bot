@@ -2,7 +2,7 @@
 Đông Đô CS Chatbot - Database Abstraction Layer
 Hỗ trợ cả SQLite (local dev) và PostgreSQL (Render production)
 Tự động chọn backend dựa trên biến môi trường DATABASE_URL
-Bao gồm quản lý Users, Sessions và Chat History
+Bao gồm quản lý Users, Sessions, Chat History, Chat Cases, Learning Queue và System Settings
 """
 import os
 import sqlite3
@@ -94,12 +94,9 @@ def init_database():
                     is_learned INTEGER DEFAULT 0
                 )
             """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_session_id ON chat_history(session_id)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_is_learned ON chat_history(is_learned)
-            """)
+            cursor.execute("ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS username TEXT")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_id ON chat_history(session_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_is_learned ON chat_history(is_learned)")
 
             # Table Users
             cursor.execute("""
@@ -125,8 +122,46 @@ def init_database():
                     expires_at TEXT NOT NULL
                 )
             """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)")
+
+            # Table Chat Cases (Live CS Inbox)
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)
+                CREATE TABLE IF NOT EXISTS chat_cases (
+                    id SERIAL PRIMARY KEY,
+                    session_id TEXT UNIQUE NOT NULL,
+                    customer_name TEXT DEFAULT 'Khách hàng',
+                    status TEXT DEFAULT 'AI_ACTIVE',
+                    assigned_cs TEXT,
+                    last_user_query TEXT,
+                    resolution_note TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_cases_status ON chat_cases(status)")
+
+            # Table Learning Queue
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS learning_queue (
+                    id SERIAL PRIMARY KEY,
+                    session_id TEXT,
+                    question TEXT NOT NULL,
+                    answer TEXT NOT NULL,
+                    status TEXT DEFAULT 'PENDING',
+                    created_by TEXT,
+                    approved_by TEXT,
+                    created_at TEXT NOT NULL,
+                    approved_at TEXT
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_learn_status ON learning_queue(status)")
+
+            # Table System Settings
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    setting_key TEXT PRIMARY KEY,
+                    setting_value TEXT NOT NULL
+                )
             """)
         else:
             # Table Chat History
@@ -141,12 +176,13 @@ def init_database():
                     is_learned INTEGER DEFAULT 0
                 )
             """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_session_id ON chat_history(session_id)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_is_learned ON chat_history(is_learned)
-            """)
+            cursor.execute("PRAGMA table_info(chat_history)")
+            cols = [r[1] for r in cursor.fetchall()]
+            if "username" not in cols:
+                cursor.execute("ALTER TABLE chat_history ADD COLUMN username TEXT")
+
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_session_id ON chat_history(session_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_is_learned ON chat_history(is_learned)")
 
             # Table Users
             cursor.execute("""
@@ -172,8 +208,46 @@ def init_database():
                     expires_at TEXT NOT NULL
                 )
             """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)")
+
+            # Table Chat Cases (Live CS Inbox)
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)
+                CREATE TABLE IF NOT EXISTS chat_cases (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT UNIQUE NOT NULL,
+                    customer_name TEXT DEFAULT 'Khách hàng',
+                    status TEXT DEFAULT 'AI_ACTIVE',
+                    assigned_cs TEXT,
+                    last_user_query TEXT,
+                    resolution_note TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_cases_status ON chat_cases(status)")
+
+            # Table Learning Queue
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS learning_queue (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT,
+                    question TEXT NOT NULL,
+                    answer TEXT NOT NULL,
+                    status TEXT DEFAULT 'PENDING',
+                    created_by TEXT,
+                    approved_by TEXT,
+                    created_at TEXT NOT NULL,
+                    approved_at TEXT
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_learn_status ON learning_queue(status)")
+
+            # Table System Settings
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    setting_key TEXT PRIMARY KEY,
+                    setting_value TEXT NOT NULL
+                )
             """)
 
         conn.commit()
@@ -201,8 +275,49 @@ def init_database():
                 conn.commit()
                 print(f"🔑 Đã khởi tạo tài khoản mặc định: {uname}")
 
+        # Cài đặt mặc định
+        default_settings = [
+            ("auto_learning_enabled", "0"),  # 0: Cần duyệt thủ công, 1: Tự động nạp vào ChromaDB
+            ("llm_model", "claude-haiku-4-5-20251001"),
+            ("temperature", "0.1"),
+        ]
+        for skey, sval in default_settings:
+            cursor.execute(f"SELECT COUNT(*) FROM system_settings WHERE setting_key = {ph}", (skey,))
+            if cursor.fetchone()[0] == 0:
+                cursor.execute(
+                    f"INSERT INTO system_settings (setting_key, setting_value) VALUES ({ph}, {ph})",
+                    (skey, sval)
+                )
+                conn.commit()
+
     db_type = "PostgreSQL" if USE_POSTGRES else "SQLite"
     print(f"✅ Database initialized ({db_type})")
+
+
+# ============================================================
+# System Settings Operations
+# ============================================================
+def get_setting(key: str, default: str = "") -> str:
+    """Lấy giá trị cài đặt hệ thống."""
+    ph = _placeholder()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT setting_value FROM system_settings WHERE setting_key = {ph}", (key,))
+        row = cursor.fetchone()
+    return row[0] if row else default
+
+
+def set_setting(key: str, value: str):
+    """Lưu hoặc cập nhật cài đặt hệ thống."""
+    ph = _placeholder()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT COUNT(*) FROM system_settings WHERE setting_key = {ph}", (key,))
+        if cursor.fetchone()[0] > 0:
+            cursor.execute(f"UPDATE system_settings SET setting_value = {ph} WHERE setting_key = {ph}", (value, key))
+        else:
+            cursor.execute(f"INSERT INTO system_settings (setting_key, setting_value) VALUES ({ph}, {ph})", (key, value))
+        conn.commit()
 
 
 # ============================================================
@@ -435,15 +550,13 @@ def get_unlearned_conversations() -> list[dict]:
     if not rows:
         return []
 
-    # Ghép thành các cặp Q&A (user → assistant)
     qa_pairs = []
     i = 0
     while i < len(rows) - 1:
         current = rows[i]
         next_row = rows[i + 1]
 
-        # Kiểm tra cặp user → assistant trong cùng session
-        if (current[2] == "user" and next_row[2] == "assistant"
+        if (current[2] == "user" and next_row[2] in ("assistant", "human_cs")
                 and current[1] == next_row[1]):
             qa_pairs.append({
                 "user_id": current[0],
@@ -479,3 +592,321 @@ def mark_as_learned(qa_pairs: list[dict]):
             ids_to_update,
         )
         conn.commit()
+
+
+
+# ============================================================
+# Chat Cases (Live CS Inbox) Operations
+# ============================================================
+def upsert_chat_case(
+    session_id: str,
+    customer_name: str = "Khách hàng",
+    status: str = "AI_ACTIVE",
+    last_user_query: str = None,
+    assigned_cs: str = None,
+):
+    """Tạo hoặc cập nhật trạng thái của case hội thoại."""
+    ph = _placeholder()
+    now = datetime.now().isoformat()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT id, status, assigned_cs FROM chat_cases WHERE session_id = {ph}", (session_id,))
+        row = cursor.fetchone()
+
+        if row:
+            # Case đã có: Cập nhật
+            current_status = row[1]
+            current_assigned = row[2]
+
+            # Giữ trạng thái HUMAN_CS_ACTIVE nếu đã có người nhận
+            new_status = status
+            if current_status == "HUMAN_CS_ACTIVE" and status == "NEEDS_HUMAN_CS":
+                new_status = "HUMAN_CS_ACTIVE"
+
+            new_assigned = assigned_cs if assigned_cs is not None else current_assigned
+
+            if last_user_query:
+                cursor.execute(
+                    f"UPDATE chat_cases SET status = {ph}, last_user_query = {ph}, assigned_cs = {ph}, updated_at = {ph} "
+                    f"WHERE session_id = {ph}",
+                    (new_status, last_user_query, new_assigned, now, session_id),
+                )
+            else:
+                cursor.execute(
+                    f"UPDATE chat_cases SET status = {ph}, assigned_cs = {ph}, updated_at = {ph} "
+                    f"WHERE session_id = {ph}",
+                    (new_status, new_assigned, now, session_id),
+                )
+        else:
+            # Tạo case mới
+            cursor.execute(
+                f"INSERT INTO chat_cases (session_id, customer_name, status, assigned_cs, last_user_query, created_at, updated_at) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+                (session_id, customer_name, status, assigned_cs, last_user_query, now, now),
+            )
+        conn.commit()
+
+
+def list_chat_cases(status_filter: str = "") -> list[dict]:
+    """Lấy danh sách các case, có thể lọc theo status."""
+    ph = _placeholder()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if status_filter:
+            cursor.execute(
+                f"SELECT session_id, customer_name, status, assigned_cs, last_user_query, resolution_note, created_at, updated_at "
+                f"FROM chat_cases WHERE status = {ph} ORDER BY updated_at DESC",
+                (status_filter,),
+            )
+        else:
+            cursor.execute(
+                "SELECT session_id, customer_name, status, assigned_cs, last_user_query, resolution_note, created_at, updated_at "
+                "FROM chat_cases ORDER BY updated_at DESC"
+            )
+        rows = cursor.fetchall()
+
+    return [
+        {
+            "session_id": r[0],
+            "user_id": r[1],
+            "customer_name": r[1],
+            "status": r[2],
+            "assigned_cs": r[3],
+            "last_user_query": r[4],
+            "resolution_note": r[5],
+            "created_at": r[6],
+            "updated_at": r[7],
+        }
+        for r in rows
+    ]
+
+
+def get_chat_case(session_id: str) -> dict | None:
+    """Lấy chi tiết 1 case."""
+    ph = _placeholder()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"SELECT session_id, customer_name, status, assigned_cs, last_user_query, resolution_note, created_at, updated_at "
+            f"FROM chat_cases WHERE session_id = {ph}",
+            (session_id,),
+        )
+        row = cursor.fetchone()
+
+    if not row:
+        return None
+
+    return {
+        "session_id": row[0],
+        "customer_name": row[1],
+        "status": row[2],
+        "assigned_cs": row[3],
+        "last_user_query": row[4],
+        "resolution_note": row[5],
+        "created_at": row[6],
+        "updated_at": row[7],
+    }
+
+
+def assign_chat_case(session_id: str, cs_username: str) -> bool:
+    """CSKH tiếp nhận case."""
+    ph = _placeholder()
+    now = datetime.now().isoformat()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"UPDATE chat_cases SET status = 'HUMAN_CS_ACTIVE', assigned_cs = {ph}, updated_at = {ph} "
+            f"WHERE session_id = {ph}",
+            (cs_username, now, session_id),
+        )
+        conn.commit()
+    return True
+
+
+def resolve_chat_case(session_id: str, cs_username: str, resolution_note: str = "") -> bool:
+    """Đóng case giải quyết xong."""
+    ph = _placeholder()
+    now = datetime.now().isoformat()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"UPDATE chat_cases SET status = 'RESOLVED', assigned_cs = {ph}, resolution_note = {ph}, updated_at = {ph} "
+            f"WHERE session_id = {ph}",
+            (cs_username, resolution_note, now, session_id),
+        )
+        conn.commit()
+    return True
+
+
+# ============================================================
+# Learning Queue Operations
+# ============================================================
+def add_to_learning_queue(
+    session_id: str,
+    question: str,
+    answer: str,
+    created_by: str = "cskh",
+    status: str = "PENDING",
+) -> int:
+    """Thêm cặp Q&A vào hàng đợi học tri thức mới."""
+    ph = _placeholder()
+    now = datetime.now().isoformat()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"INSERT INTO learning_queue (session_id, question, answer, status, created_by, created_at) "
+            f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+            (session_id, question.strip(), answer.strip(), status, created_by, now),
+        )
+        conn.commit()
+        if USE_POSTGRES:
+            cursor.execute("SELECT LASTVAL()")
+            new_id = cursor.fetchone()[0]
+        else:
+            new_id = cursor.lastrowid
+    return new_id
+
+
+def list_learning_items(status: str = "PENDING") -> list[dict]:
+    """Lấy danh sách các mẩu Q&A theo status."""
+    ph = _placeholder()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if status:
+            cursor.execute(
+                f"SELECT id, session_id, question, answer, status, created_by, approved_by, created_at, approved_at "
+                f"FROM learning_queue WHERE status = {ph} ORDER BY id DESC",
+                (status,),
+            )
+        else:
+            cursor.execute(
+                "SELECT id, session_id, question, answer, status, created_by, approved_by, created_at, approved_at "
+                "FROM learning_queue ORDER BY id DESC"
+            )
+        rows = cursor.fetchall()
+
+    return [
+        {
+            "id": r[0],
+            "session_id": r[1],
+            "question": r[2],
+            "answer": r[3],
+            "status": r[4],
+            "created_by": r[5],
+            "approved_by": r[6],
+            "created_at": r[7],
+            "approved_at": r[8],
+        }
+        for r in rows
+    ]
+
+
+def get_learning_item(item_id: int) -> dict | None:
+    """Lấy chi tiết 1 mẩu Q&A."""
+    ph = _placeholder()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"SELECT id, session_id, question, answer, status, created_by, approved_by, created_at, approved_at "
+            f"FROM learning_queue WHERE id = {ph}",
+            (item_id,),
+        )
+        row = cursor.fetchone()
+
+    if not row:
+        return None
+
+    return {
+        "id": row[0],
+        "session_id": row[1],
+        "question": row[2],
+        "answer": row[3],
+        "status": row[4],
+        "created_by": row[5],
+        "approved_by": row[6],
+        "created_at": row[7],
+        "approved_at": row[8],
+    }
+
+
+def update_learning_item(item_id: int, question: str, answer: str):
+    """Cập nhật nội dung Q&A trước khi duyệt."""
+    ph = _placeholder()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"UPDATE learning_queue SET question = {ph}, answer = {ph} WHERE id = {ph}",
+            (question.strip(), answer.strip(), item_id),
+        )
+        conn.commit()
+
+
+def mark_learning_item_status(item_id: int, status: str, approved_by: str = None):
+    """Cập nhật trạng thái duyệt (APPROVED / REJECTED)."""
+    ph = _placeholder()
+    now = datetime.now().isoformat()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"UPDATE learning_queue SET status = {ph}, approved_by = {ph}, approved_at = {ph} WHERE id = {ph}",
+            (status, approved_by, now, item_id),
+        )
+        conn.commit()
+
+
+# ============================================================
+# Analytics Operations
+# ============================================================
+def get_analytics_stats() -> dict:
+    """Lấy toàn bộ chỉ số thống kê hiệu suất CS và học tri thức."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Tổng số case
+        cursor.execute("SELECT COUNT(*) FROM chat_cases")
+        total_cases = cursor.fetchone()[0]
+
+        # Case cần CSKH
+        cursor.execute("SELECT COUNT(*) FROM chat_cases WHERE status = 'NEEDS_HUMAN_CS'")
+        needs_human = cursor.fetchone()[0]
+
+        # Case CSKH đang xử lý
+        cursor.execute("SELECT COUNT(*) FROM chat_cases WHERE status = 'HUMAN_CS_ACTIVE'")
+        active_cs = cursor.fetchone()[0]
+
+        # Case đã giải quyết
+        cursor.execute("SELECT COUNT(*) FROM chat_cases WHERE status = 'RESOLVED'")
+        resolved = cursor.fetchone()[0]
+
+        # Case AI tự xử lý hoàn toàn
+        cursor.execute("SELECT COUNT(*) FROM chat_cases WHERE status = 'AI_ACTIVE'")
+        ai_active = cursor.fetchone()[0]
+
+        # Tổng sessions
+        cursor.execute("SELECT COUNT(DISTINCT session_id) FROM chat_history")
+        total_sessions = cursor.fetchone()[0]
+
+        # Số tri thức đã học (learning_queue APPROVED)
+        cursor.execute("SELECT COUNT(*) FROM learning_queue WHERE status = 'APPROVED'")
+        total_learned_qa = cursor.fetchone()[0]
+
+        # Số tri thức đang chờ duyệt
+        cursor.execute("SELECT COUNT(*) FROM learning_queue WHERE status = 'PENDING'")
+        pending_qa = cursor.fetchone()[0]
+
+    # Tính tỷ lệ AI tự phục vụ
+    self_rate = 0
+    if total_cases > 0:
+        self_rate = round((ai_active / total_cases) * 100, 1)
+
+    return {
+        "total_cases": total_cases,
+        "total_sessions": max(total_sessions, total_cases),
+        "ai_active_cases": ai_active,
+        "needs_human_cases": needs_human,
+        "active_human_cases": active_cs,
+        "resolved_cases": resolved,
+        "ai_self_service_rate": self_rate,
+        "total_learned_qa": total_learned_qa,
+        "pending_learn_count": pending_qa,
+    }

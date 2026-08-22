@@ -473,6 +473,30 @@ body {
     border-color: var(--border-focus);
 }
 
+.btn-cskh-portal {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15));
+    border: 1px solid rgba(129, 140, 248, 0.35);
+    border-radius: var(--radius-full);
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all var(--transition-fast);
+    backdrop-filter: blur(8px);
+}
+
+.btn-cskh-portal:hover {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.3));
+    border-color: rgba(129, 140, 248, 0.6);
+    color: #ffffff;
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.35);
+    transform: translateY(-1px);
+}
+
 .btn-logout:hover {
     color: #ef4444;
     border-color: rgba(239, 68, 68, 0.4);

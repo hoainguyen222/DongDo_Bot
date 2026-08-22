@@ -7,5 +7,6 @@ langchain-chroma
 chromadb
 fastembed
 docx2txt
+python-docx
 python-multipart
 psycopg2-binary

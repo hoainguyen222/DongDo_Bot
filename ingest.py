@@ -4,7 +4,6 @@
 """
 import os
 import glob
-import docx2txt
 from datetime import datetime
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -21,6 +20,23 @@ from config import (
 )
 
 
+def extract_text_from_docx(filepath: str) -> str:
+    """Trích xuất toàn bộ văn bản từ file .docx bằng python-docx hoặc docx2txt."""
+    try:
+        import docx
+        doc = docx.Document(filepath)
+        paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+        for table in doc.tables:
+            for row in table.rows:
+                cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                if cells:
+                    paragraphs.append(" | ".join(cells))
+        return "\n".join(paragraphs)
+    except Exception:
+        import docx2txt
+        return docx2txt.process(filepath) or ""
+
+
 def load_docx_files(directory: str) -> list[dict]:
     """Đọc tất cả file .docx trong thư mục, trả về list {content, source}."""
     documents = []
@@ -34,7 +50,7 @@ def load_docx_files(directory: str) -> list[dict]:
         filename = os.path.basename(filepath)
         print(f"📄 Đang đọc: {filename}")
         try:
-            content = docx2txt.process(filepath)
+            content = extract_text_from_docx(filepath)
             if content and content.strip():
                 documents.append({
                     "content": content.strip(),
@@ -49,7 +65,7 @@ def load_docx_files(directory: str) -> list[dict]:
     return documents
 
 
-def chunk_documents(documents: list[dict]) -> list:
+def chunk_documents(documents: list[dict]) -> tuple[list, list]:
     """Chia nhỏ documents thành các chunks với metadata."""
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,

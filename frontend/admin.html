@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đông Đô CS Studio - Quản Trị CSKH & Dạy AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/admin.css?v=4.0">
+</head>
+
+<body>
+    <!-- Login Modal Overlay (Chỉ hiển thị khi chưa đăng nhập) -->
+    <div class="login-overlay" id="adminLoginOverlay">
+        <div class="login-card">
+            <div class="login-brand">
+                <div class="logo-icon large">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="url(#adminGrad1)" opacity="0.9" />
+                        <path d="M2 17L12 22L22 17" stroke="url(#adminGrad2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M2 12L12 17L22 12" stroke="url(#adminGrad2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <defs>
+                            <linearGradient id="adminGrad1" x1="2" y1="2" x2="22" y2="12">
+                                <stop offset="0%" stop-color="#60a5fa" />
+                                <stop offset="100%" stop-color="#a78bfa" />
+                            </linearGradient>
+                            <linearGradient id="adminGrad2" x1="2" y1="12" x2="22" y2="22">
+                                <stop offset="0%" stop-color="#60a5fa" />
+                                <stop offset="100%" stop-color="#a78bfa" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h2>Đông Đô CS Studio</h2>
+                <p class="login-subtitle">Cổng Quản Trị Chăm Sóc Khách Hàng &amp; Dạy AI</p>
+            </div>
+
+            <form class="login-form" id="adminLoginForm">
+                <div class="form-group">
+                    <label for="adminUsername">Tên đăng nhập CSKH / Admin</label>
+                    <div class="input-icon-wrapper">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                        </svg>
+                        <input type="text" id="adminUsername" placeholder="Nhập username (cskh01..05 hoặc admin)" required autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="adminPassword">Mật khẩu</label>
+                    <div class="input-icon-wrapper">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                        <input type="password" id="adminPassword" placeholder="Nhập mật khẩu" required autocomplete="current-password">
+                    </div>
+                </div>
+
+                <div class="login-error" id="adminLoginError"></div>
+
+                <button type="submit" class="btn-login" id="btnAdminLoginSubmit">
+                    <span>Đăng nhập Studio</span>
+                </button>
+            </form>
+            <div class="login-footer-note">
+                🔒 Dành riêng cho Chuyên viên CSKH &amp; Quản trị viên Đông Đô Partners
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Studio Layout -->
+    <div class="app-layout" id="appLayout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="url(#sbGrad1)" opacity="0.9" />
+                        <path d="M2 17L12 22L22 17" stroke="url(#sbGrad2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M2 12L12 17L22 12" stroke="url(#sbGrad2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <defs>
+                            <linearGradient id="sbGrad1" x1="2" y1="2" x2="22" y2="12">
+                                <stop offset="0%" stop-color="#60a5fa" />
+                                <stop offset="100%" stop-color="#a78bfa" />
+                            </linearGradient>
+                            <linearGradient id="sbGrad2" x1="2" y1="12" x2="22" y2="22">
+                                <stop offset="0%" stop-color="#60a5fa" />
+                                <stop offset="100%" stop-color="#a78bfa" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <h2>Đông Đô CS</h2>
+                    <span class="badge-studio">STUDIO V4.0</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="inbox">
+                    <span class="icon">📬</span>
+                    <span class="label">Live CS Inbox</span>
+                    <span class="badge-count" id="badge-inbox-count">0</span>
+                </button>
+                <button class="nav-item" data-tab="learning">
+                    <span class="icon">🧠</span>
+                    <span class="label">Học Tri Thức Mới</span>
+                    <span class="badge-count warning" id="badge-learning-count">0</span>
+                </button>
+                <button class="nav-item" data-tab="knowledge">
+                    <span class="icon">📚</span>
+                    <span class="label">Kho Tri Thức</span>
+                </button>
+                <button class="nav-item" data-tab="analytics">
+                    <span class="icon">📊</span>
+                    <span class="label">Báo Cáo &amp; Thống Kê</span>
+                </button>
+                <button class="nav-item" data-tab="config">
+                    <span class="icon">⚙️</span>
+                    <span class="label">Cấu Hình Hệ Thống</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="system-status">
+                    <span class="status-dot online"></span>
+                    <div class="status-info">
+                        <span class="status-title">System Active</span>
+                        <span class="status-subtitle" id="status-engine-text">RAG + Claude 3.5 Haiku</span>
+                    </div>
+                </div>
+                <a href="/" target="_blank" class="btn-client-link">💬 Mở Khung Chat Khách ↗</a>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="header-title">
+                    <h1 id="page-title">Live CS Inbox - Tiếp Nhận &amp; Hỗ Trợ Khách Hàng</h1>
+                    <p id="page-subtitle">Quản lý các case cần sự can thiệp của Chuyên viên CSKH thật</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-refresh" onclick="refreshCurrentTab()" title="Làm mới dữ liệu">🔄 Làm mới</button>
+                    <div class="user-profile">
+                        <span class="avatar">👨‍💼</span>
+                        <span class="user-name" id="current-agent-name">Chuyên viên CSKH</span>
+                    </div>
+                    <button class="btn-logout-studio" onclick="handleLogout()" title="Đăng xuất">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                            <polyline points="16 17 21 12 16 7" />
+                            <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- TAB 1: LIVE CS INBOX -->
+            <section class="tab-content active" id="tab-inbox">
+                <div class="inbox-grid">
+                    <!-- Cases List Panel -->
+                    <div class="cases-panel card">
+                        <div class="panel-header">
+                            <h3>Danh Sách Case Hỗ Trợ</h3>
+                            <div class="filter-group">
+                                <button class="btn-filter active" onclick="filterCases('')">Tất cả</button>
+                                <button class="btn-filter" onclick="filterCases('NEEDS_HUMAN_CS')">Chờ CSKH</button>
+                                <button class="btn-filter" onclick="filterCases('HUMAN_CS_ACTIVE')">Đang CSKH</button>
+                                <button class="btn-filter" onclick="filterCases('RESOLVED')">Đã Đóng</button>
+                            </div>
+                        </div>
+                        <div class="cases-list" id="cases-list-container">
+                            <div class="empty-state">Đang tải danh sách case...</div>
+                        </div>
+                    </div>
+
+                    <!-- Active Case Chat Detail Panel -->
+                    <div class="chat-detail-panel card" id="chat-detail-panel">
+                        <div class="empty-detail-state" id="empty-chat-state">
+                            <div class="icon">💬</div>
+                            <h3>Chọn một case bên trái để xem hội thoại &amp; tiếp nhận hỗ trợ</h3>
+                            <p>Các câu hỏi khách hỏi mà AI chưa có dữ liệu sẽ tự động xuất hiện ở tab <strong>Chờ CSKH</strong></p>
+                        </div>
+
+                        <div class="chat-detail-container hidden" id="chat-detail-container">
+                            <div class="detail-header">
+                                <div class="case-meta">
+                                    <span class="case-id" id="detail-session-id">Session ID</span>
+                                    <span class="status-badge" id="detail-status-tag">STATUS</span>
+                                    <span class="assigned-tag" id="detail-cs-tag">CS: Chưa phân công</span>
+                                </div>
+                                <div class="detail-actions">
+                                    <button class="btn-action primary" id="btn-take-case" onclick="takeActiveCase()">🚀 Tiếp Nhận Case</button>
+                                    <button class="btn-action success" id="btn-resolve-case" onclick="openResolveModal()">✅ Đóng &amp; Giải Quyết</button>
+                                </div>
+                            </div>
+
+                            <!-- Message History -->
+                            <div class="detail-messages" id="detail-messages-container">
+                                <!-- Messages populate here -->
+                            </div>
+
+                            <!-- Human Reply Box -->
+                            <div class="detail-reply-box" id="detail-reply-box">
+                                <textarea id="cs-reply-input" placeholder="Nhập tin nhắn phản hồi trực tiếp tới khách hàng... (Ấn Enter hoặc bấm nút Gửi)" rows="2"></textarea>
+                                <div class="reply-bar">
+                                    <span class="tip">💡 Tin nhắn của bạn sẽ hiển thị thời gian thực trên màn hình Chat của Khách</span>
+                                    <button class="btn-send-reply" onclick="sendHumanReply()">Gửi Tin Nhắn 🚀</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: CONTINUOUS LEARNING QUEUE -->
+            <section class="tab-content" id="tab-learning">
+                <!-- Learning Header with Mode Toggle -->
+                <div class="learning-header card">
+                    <div class="learning-info">
+                        <h2>🧠 Hàng Đợi &amp; Cơ Chế Tự Động Học Tri Thức Cho AI</h2>
+                        <p>Khi Chuyên viên CSKH trả lời và đóng case, mẩu Q&amp;A sẽ được trích xuất. Bạn có thể bật chế độ <strong>Tự động học ngay</strong> hoặc <strong>Duyệt thủ công</strong> bên dưới.</p>
+                    </div>
+
+                    <!-- Auto-Learn Toggle Switch -->
+                    <div class="learning-toggle-wrapper">
+                        <div class="toggle-box">
+                            <span class="toggle-label" id="toggle-status-text">Chế độ nạp tri thức:</span>
+                            <label class="switch">
+                                <input type="checkbox" id="chk-auto-learning" onchange="handleToggleAutoLearn(this.checked)">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-hint" id="toggle-hint-text">
+                            🟢 Đang BẬT tự động: Q&amp;A từ CSKH sẽ được nạp thẳng vào ChromaDB ngay lập tức.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="learning-list-header">
+                    <h3>Danh sách mẩu Q&amp;A đang chờ phê duyệt (<span id="stat-pending-num">0</span>)</h3>
+                </div>
+
+                <div class="learning-list" id="learning-list-container">
+                    <div class="empty-state">Đang tải danh sách Q&amp;A chờ duyệt...</div>
+                </div>
+            </section>
+
+            <!-- TAB 3: KNOWLEDGE BASE MANAGER -->
+            <section class="tab-content" id="tab-knowledge">
+                <div class="kb-grid">
+                    <!-- Upload Card -->
+                    <div class="card upload-card">
+                        <h3>📥 Nạp Tài Liệu Kiến Thức Mới (.docx)</h3>
+                        <p>Tải lên file tài liệu Microsoft Word (.docx) chuẩn để hệ thống tự động Chunking, Vector Embedding và Nạp trực tiếp vào ChromaDB không cần khởi động lại server.</p>
+
+                        <form id="upload-form" onsubmit="handleDocUpload(event)" class="dropzone">
+                            <input type="file" id="docx-file-input" accept=".docx" required />
+                            <div class="dropzone-text">
+                                <span class="icon">📄</span>
+                                <span id="dropzone-label">Kéo thả file .docx vào đây hoặc bấm chọn file</span>
+                            </div>
+                            <button type="submit" class="btn-upload" id="btnUploadSubmit">Tải Phân Tích &amp; Nạp Vào VectorDB 🚀</button>
+                        </form>
+                        <div id="upload-result" class="upload-result-box hidden"></div>
+                    </div>
+
+                    <!-- Document & Chunks Overview -->
+                    <div class="card docs-overview-card">
+                        <h3>📚 Tổng Quan Kho Tri Thức Vector DB</h3>
+                        <div class="kb-summary-metrics">
+                            <div class="metric">
+                                <span class="val" id="kb-chunk-count">0</span>
+                                <span class="lbl">Tổng Chunks (Vectors)</span>
+                            </div>
+                            <div class="metric">
+                                <span class="val" id="kb-doc-count">0</span>
+                                <span class="lbl">Tài Liệu Gốc</span>
+                            </div>
+                            <div class="metric">
+                                <span class="val" id="kb-embed-model">all-MiniLM-L6-v2</span>
+                                <span class="lbl">Embedding Engine (ONNX)</span>
+                            </div>
+                        </div>
+
+                        <h4 style="margin-top: 1.5rem; color: var(--text-secondary); font-size: 0.9rem;">Danh Sách File Tài Liệu Trong Thư Mục `tailieu/`</h4>
+                        <div class="docs-table-wrapper">
+                            <table class="docs-table">
+                                <thead>
+                                    <tr>
+                                        <th>Tên File Tài Liệu</th>
+                                        <th>Dung Lượng</th>
+                                        <th>Trạng Thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="docs-list-tbody">
+                                    <tr>
+                                        <td colspan="3">Đang tải danh sách tài liệu...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: ANALYTICS & REPORTS -->
+            <section class="tab-content" id="tab-analytics">
+                <div class="analytics-metrics-grid">
+                    <div class="card metric-card glowing-blue">
+                        <div class="icon">🤖</div>
+                        <div class="metric-body">
+                            <span class="value" id="analytic-self-rate">0%</span>
+                            <span class="label">Tỷ Lệ AI Tự Giải Quyết</span>
+                        </div>
+                    </div>
+
+                    <div class="card metric-card glowing-orange">
+                        <div class="icon">🎧</div>
+                        <div class="metric-body">
+                            <span class="value" id="analytic-active-cs">0</span>
+                            <span class="label">Case Đang Tiếp Nhận CSKH</span>
+                        </div>
+                    </div>
+
+                    <div class="card metric-card glowing-green">
+                        <div class="icon">✅</div>
+                        <div class="metric-body">
+                            <span class="value" id="analytic-resolved">0</span>
+                            <span class="label">Case Đã Giải Quyết</span>
+                        </div>
+                    </div>
+
+                    <div class="card metric-card glowing-purple">
+                        <div class="icon">🎓</div>
+                        <div class="metric-body">
+                            <span class="value" id="analytic-learned-qa">0</span>
+                            <span class="label">Mẩu Tri Thức AI Đã Học</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card analytics-chart-card">
+                    <h3>📊 Báo Cáo Hiệu Suất Trợ Lý CSKH Đông Đô</h3>
+                    <p>Thống kê số lượng phiên hội thoại và chu trình tự học tri thức liên tục từ các case CSKH.</p>
+                    <div class="analytics-detail-box">
+                        <div class="detail-row">
+                            <span>Tổng số phiên tư vấn (Chat Sessions):</span>
+                            <strong id="analytic-total-sessions">0</strong>
+                        </div>
+                        <div class="detail-row">
+                            <span>Số mẩu tri thức đang chờ phê duyệt:</span>
+                            <strong id="analytic-pending-qa">0</strong>
+                        </div>
+                        <div class="detail-row">
+                            <span>Độ phản hồi trung bình RAG VectorDB:</span>
+                            <strong style="color: #10b981;">&lt; 50ms (ONNX FastEmbed)</strong>
+                        </div>
+                        <div class="detail-row">
+                            <span>Mô hình LLM vận hành:</span>
+                            <strong style="color: #60a5fa;" id="analytic-model-name">claude-haiku-4-5-20251001</strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: SYSTEM CONFIG -->
+            <section class="tab-content" id="tab-config">
+                <div class="card config-card">
+                    <h3>⚙️ Cấu Hình Prompt &amp; Tham Số Mô Hình AI</h3>
+                    <form id="config-form" onsubmit="handleConfigSave(event)">
+                        <div class="form-group">
+                            <label for="cfg-system-prompt">System Prompt (Chỉ thị cốt lõi &amp; Nhân cách CSKH):</label>
+                            <textarea id="cfg-system-prompt" rows="12" class="code-textarea"></textarea>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="cfg-model">Anthropic LLM Model:</label>
+                                <input type="text" id="cfg-model" value="claude-haiku-4-5-20251001" />
+                            </div>
+                            <div class="form-group">
+                                <label for="cfg-temp">Temperature (Độ sáng tạo vs Độ chính xác):</label>
+                                <input type="number" id="cfg-temp" step="0.05" min="0" max="1" value="0.1" />
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Lưu Cấu Hình System 💾</button>
+                        </div>
+                    </form>
+                    <div id="config-save-msg" class="msg-box hidden"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Resolve Case & Extract Q&A Modal -->
+    <div class="modal-overlay hidden" id="resolve-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>✅ Đóng Case &amp; Trích Xuất Tri Thức Mới Cho AI</h3>
+                <button class="btn-close-modal" onclick="closeResolveModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Ghi chú giải quyết của Chuyên viên CSKH:</label>
+                    <input type="text" id="modal-resolve-note" placeholder="Ví dụ: Đã tư vấn khách nạp tiền qua DDP Invest thành công..." />
+                </div>
+
+                <hr class="modal-divider" />
+
+                <h4>🧠 Bài Học Tri Thức Cho AI (Tùy chọn)</h4>
+                <p class="subtext">Nhập câu hỏi &amp; câu trả lời chuẩn xác của case này để nạp vào kho tri thức giúp AI tự trả lời ở các lần sau:</p>
+
+                <div class="form-group">
+                    <label>Câu hỏi của Khách hàng:</label>
+                    <input type="text" id="modal-extract-q" placeholder="Ví dụ: Quả cam có giá bao nhiêu?" />
+                </div>
+                <div class="form-group">
+                    <label>Câu trả lời chuẩn của CSKH:</label>
+                    <textarea id="modal-extract-a" rows="4" placeholder="Ví dụ: Quả cam có giá 12k nhé anh/chị."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeResolveModal()">Hủy</button>
+                <button class="btn-success" onclick="submitResolveCase()">Hoàn Tất Đóng Case &amp; Gửi Tri Thức 🚀</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/admin.js?v=4.0"></script>
+</body>
+
+</html>
