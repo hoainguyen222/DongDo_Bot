@@ -210,6 +210,13 @@ async def lifespan(app: FastAPI):
         )
         collection = vector_store._collection
         print(f"   → {collection.count()} chunks trong vector store")
+        
+        # Chạy học từ lịch sử chat cũ (khi database đã sẵn sàng ở runtime)
+        try:
+            from learn import main as run_learning
+            run_learning()
+        except Exception as e:
+            print(f"⚠️ Learning check on startup: {e}")
     else:
         print("⚠️  Vector store chưa tồn tại. Hãy chạy: python ingest.py")
 

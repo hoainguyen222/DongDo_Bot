@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================
 # Đông Đô CS Chatbot - Render Build Script
-# 1. Cài dependencies
-# 2. Ingest tài liệu .docx vào ChromaDB
-# 3. Học từ chat history (PostgreSQL) nếu có
+# 1. Cài đặt thư viện dependencies
+# 2. Ingest tài liệu .docx vào Vector Database (ChromaDB)
 # ============================================================
 set -e
 
@@ -16,8 +15,4 @@ echo "📄 Ingesting documents into vector store..."
 python ingest.py
 
 echo ""
-echo "🧠 Learning from chat history..."
-python learn.py
-
-echo ""
-echo "✅ Build complete!"
+echo "✅ Build complete successfully!"
