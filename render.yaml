@@ -1,6 +1,5 @@
 # ============================================================
 # Render.com Blueprint - Đông Đô CS Chatbot
-# File này giúp deploy 1-click lên Render
 # ============================================================
 
 databases:
@@ -13,18 +12,17 @@ services:
   - type: web
     name: dongdo-cs-chatbot
     runtime: python
-    region: singapore  # Gần Việt Nam nhất
+    region: singapore
     plan: free
     buildCommand: chmod +x build.sh && ./build.sh
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: ANTHROPIC_API_KEY
-        sync: false  # Nhập thủ công trên Render Dashboard
+        sync: false
       - key: PYTHON_VERSION
         value: 3.12.3
       - key: DATABASE_URL
         fromDatabase:
           name: dongdo-chat-db
           property: connectionString
-    healthCheckPath: /health
     autoDeploy: true
