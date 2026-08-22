@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/admin.css?v=6.0.0">
+    <link rel="stylesheet" href="/static/admin.css?v=7.0.0">
 </head>
 
 <body>
@@ -419,23 +419,19 @@
                         <label class="custom-checkbox">
                             <input type="checkbox" id="modal-enable-learn" checked onchange="toggleModalLearnFields(this.checked)">
                             <span class="checkmark"></span>
-                            <span class="label-text">🧠 <strong>Dạy bài học này cho AI</strong> để tự trả lời ở các lần sau</span>
+                            <span class="label-text">🧠 <strong>Dạy các câu hỏi &amp; trả lời này cho AI</strong> để tự trả lời ở các lần sau</span>
                         </label>
                     </div>
 
                     <div class="modal-auto-hint" id="modal-auto-hint">
-                        ✨ <em>Hệ thống đã tự động trích xuất câu hỏi &amp; câu trả lời từ đoạn chat. Bạn chỉ cần xem lại và bấm Hoàn tất!</em>
+                        ✨ <em>Hệ thống đã tự động trích xuất <strong id="modal-qa-count">0</strong> cặp câu hỏi &amp; câu trả lời trong phiên chat này. Bạn có thể kiểm tra hoặc bổ sung thêm:</em>
                     </div>
 
                     <div id="modal-learn-fields" class="modal-learn-fields">
-                        <div class="form-group">
-                            <label>❓ Câu hỏi của Khách hàng:</label>
-                            <input type="text" id="modal-extract-q" placeholder="Câu hỏi từ khách hàng..." />
+                        <div id="modal-qa-pairs-container" class="qa-pairs-container">
+                            <!-- Danh sách các cặp Q&A tự động hiển thị tại đây -->
                         </div>
-                        <div class="form-group">
-                            <label>💡 Câu trả lời chuẩn của CSKH:</label>
-                            <textarea id="modal-extract-a" rows="4" placeholder="Câu trả lời chuẩn xác để AI học..."></textarea>
-                        </div>
+                        <button type="button" class="btn-add-qa" onclick="addManualQAPair()">➕ Thêm cặp Câu hỏi / Trả lời khác</button>
                     </div>
                 </div>
             </div>
@@ -446,7 +442,7 @@
         </div>
     </div>
 
-    <script src="/static/admin.js?v=6.0.0"></script>
+    <script src="/static/admin.js?v=7.0.0"></script>
 </body>
 
 </html>

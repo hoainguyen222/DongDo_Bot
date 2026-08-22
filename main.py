@@ -108,12 +108,16 @@ def embed_qa_to_chromadb(question: str, answer: str, session_id: str = "") -> in
         print("⚠️ Vector store chưa sẵn sàng để nạp Q&A")
         return 0
 
-    content = f"CÂU HỎI KHÁCH HÀNG: {question.strip()}\nCÂU TRẢ LỜI CHUẨN CSKH: {answer.strip()}"
-    doc_id = f"learned_qa_{int(datetime.now().timestamp() * 1000)}"
+    content = (
+        f"CÂU HỎI / CHỦ ĐỀ CỦA KHÁCH HÀNG: {question.strip()}\n"
+        f"CÂU TRẢ LỜI / THÔNG TIN CHÍNH THỨC CỦA ĐÔNG ĐÔ PARTNERS: {answer.strip()}"
+    )
+    doc_id = f"learned_qa_{int(datetime.now().timestamp() * 1000)}_{uuid.uuid4().hex[:6]}"
     metadata = {
         "source": "CSKH_Learning",
         "session_id": session_id,
         "type": "learned_qa",
+        "question": question.strip(),
         "learned_at": datetime.now().isoformat(),
     }
 
@@ -122,7 +126,7 @@ def embed_qa_to_chromadb(question: str, answer: str, session_id: str = "") -> in
         metadatas=[metadata],
         ids=[doc_id],
     )
-    print(f"🧠 Đã nạp thành công Q&A vào ChromaDB (ID: {doc_id})")
+    print(f"🧠 Đã nạp thành công Q&A vào ChromaDB (ID: {doc_id}) -> {question.strip()} | {answer.strip()}")
     return 1
 
 
@@ -159,17 +163,26 @@ def retrieve_context(query: str) -> tuple[str, list[str]]:
     if vector_store is None:
         return "", []
 
-    results = vector_store.similarity_search_with_relevance_scores(
-        query, k=RETRIEVER_K
-    )
+    try:
+        results = vector_store.similarity_search_with_relevance_scores(
+            query, k=RETRIEVER_K
+        )
+    except Exception as e:
+        results = []
 
     if not results:
-        return "", []
+        try:
+            docs = vector_store.similarity_search(query, k=RETRIEVER_K)
+            results = [(d, 0.5) for d in docs]
+        except Exception:
+            return "", []
 
     context_parts = []
     sources = set()
     for doc, score in results:
-        if score >= 0.2:
+        is_learned = doc.metadata.get("source") == "CSKH_Learning"
+        # Chấp nhận tài liệu phù hợp hoặc là tri thức CSKH đã nạp
+        if score >= 0.05 or is_learned:
             context_parts.append(doc.page_content)
             if "source" in doc.metadata:
                 sources.add(doc.metadata["source"])
@@ -340,11 +353,17 @@ class CSReplyRequest(BaseModel):
     message: str
 
 
+class QAPairItem(BaseModel):
+    question: str
+    answer: str
+
+
 class CSResolveRequest(BaseModel):
     agent_name: str
     resolution_note: str = ""
     extract_question: str = ""
     extract_answer: str = ""
+    extract_pairs: list[QAPairItem] = []
 
 
 class LearningSettingsRequest(BaseModel):
@@ -554,27 +573,45 @@ async def api_resolve_case(
 
     auto_learn = get_setting("auto_learning_enabled", "0") == "1"
 
-    if req.extract_question and req.extract_answer and req.extract_question.strip() and req.extract_answer.strip():
-        q = req.extract_question.strip()
-        a = req.extract_answer.strip()
+    # Thu thập tất cả các cặp Q&A cần học
+    pairs_to_process = []
+    if req.extract_pairs:
+        for p in req.extract_pairs:
+            q_txt = p.question.strip() if p.question else ""
+            a_txt = p.answer.strip() if p.answer else ""
+            if q_txt and a_txt:
+                pairs_to_process.append((q_txt, a_txt))
+    elif req.extract_question and req.extract_answer:
+        q_txt = req.extract_question.strip()
+        a_txt = req.extract_answer.strip()
+        if q_txt and a_txt:
+            pairs_to_process.append((q_txt, a_txt))
+
+    if pairs_to_process:
+        learned_count = 0
+        for q, a in pairs_to_process:
+            if auto_learn:
+                item_id = add_to_learning_queue(session_id, q, a, created_by=cs_name, status="APPROVED")
+                mark_learning_item_status(item_id, "APPROVED", approved_by=cs_name)
+                embed_qa_to_chromadb(q, a, session_id)
+                learned_count += 1
+            else:
+                add_to_learning_queue(session_id, q, a, created_by=cs_name, status="PENDING")
+                learned_count += 1
 
         if auto_learn:
-            # TỰ ĐỘNG HỌC LUÔN: Nhúng thẳng vào ChromaDB
-            item_id = add_to_learning_queue(session_id, q, a, created_by=cs_name, status="APPROVED")
-            mark_learning_item_status(item_id, "APPROVED", approved_by=cs_name)
-            embed_qa_to_chromadb(q, a, session_id)
             return {
                 "success": True,
                 "auto_learned": True,
-                "message": "Đã đóng case và TỰ ĐỘNG nạp tri thức vào ChromaDB thành công! Lần sau AI sẽ tự trả lời câu hỏi này.",
+                "learned_count": learned_count,
+                "message": f"Đã đóng case và TỰ ĐỘNG nạp {learned_count} cặp câu hỏi & câu trả lời vào ChromaDB thành công! Lần sau AI sẽ tự trả lời.",
             }
         else:
-            # DUYỆT THỦ CÔNG: Đẩy vào hàng chờ
-            item_id = add_to_learning_queue(session_id, q, a, created_by=cs_name, status="PENDING")
             return {
                 "success": True,
                 "auto_learned": False,
-                "message": "Đã đóng case và đưa cặp Q&A vào Hàng đợi phê duyệt tri thức mới.",
+                "learned_count": learned_count,
+                "message": f"Đã đóng case và đưa {learned_count} cặp Q&A vào Hàng đợi phê duyệt tri thức mới.",
             }
 
     return {"success": True, "auto_learned": False, "message": "Đã đóng case thành công."}

@@ -352,59 +352,110 @@ async function sendHumanReply() {
     }
 }
 
-// Resolve Modal
+// Resolve Modal Multi-QA Management
+let extractedQAPairs = [];
+
+function extractAllQAPairs(messages) {
+    const pairs = [];
+    let lastUserText = '';
+    let lastUserIdx = -1;
+
+    for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        if (m.role === 'user') {
+            lastUserText = m.content.trim();
+            lastUserIdx = i;
+        } else if (m.role === 'human_cs' && lastUserText) {
+            const csReply = m.content.trim();
+            if (csReply) {
+                // Bỏ qua tin nhắn chào mở đầu của CSKH
+                if (csReply.includes('Em đã tham gia cuộc trò chuyện và sẽ hỗ trợ')) {
+                    continue;
+                }
+                const existing = pairs.find((p) => p.userIndex === lastUserIdx);
+                if (existing) {
+                    existing.answer += '\n' + csReply;
+                } else {
+                    pairs.push({
+                        userIndex: lastUserIdx,
+                        question: lastUserText,
+                        answer: csReply,
+                    });
+                }
+            }
+        }
+    }
+    return pairs;
+}
+
 function openResolveModal() {
     if (!activeSessionId) return;
     document.getElementById('resolve-modal').classList.remove('hidden');
 
-    // Reset checkbox to checked
     const enableLearnChk = document.getElementById('modal-enable-learn');
     if (enableLearnChk) {
         enableLearnChk.checked = true;
         toggleModalLearnFields(true);
     }
 
-    let lastUserQ = '';
-    let lastCSA = '';
+    // 1. Trích xuất tất cả các cặp Q&A trong phiên hội thoại
+    extractedQAPairs = extractAllQAPairs(currentActiveCaseMessages);
 
-    // 1. Trích xuất từ data mảng messages hiện tại
-    if (currentActiveCaseMessages && currentActiveCaseMessages.length > 0) {
+    // 2. Dự phòng: Nếu không trích xuất được thì tạo ít nhất 1 cặp với câu hỏi cuối cùng
+    if (extractedQAPairs.length === 0) {
         const userMsgs = currentActiveCaseMessages.filter((m) => m.role === 'user');
-        const csMsgs = currentActiveCaseMessages.filter((m) => m.role === 'human_cs');
-
-        if (userMsgs.length > 0) {
-            lastUserQ = userMsgs[userMsgs.length - 1].content.trim();
-        }
-        if (csMsgs.length > 0) {
-            lastCSA = csMsgs.map((m) => m.content.trim()).filter(Boolean).join('\n');
-        }
+        const lastQ = userMsgs.length > 0 ? userMsgs[userMsgs.length - 1].content.trim() : '';
+        extractedQAPairs.push({ question: lastQ, answer: '' });
     }
 
-    // 2. Dự phòng: Nếu mảng rỗng thì bóc tách trực tiếp từ giao diện DOM (đã lọc sạch timestamp và icon)
-    if (!lastUserQ) {
-        const msgContainer = document.getElementById('detail-messages-container');
-        const userBubbles = msgContainer.querySelectorAll('.msg-bubble.user');
-        if (userBubbles.length > 0) {
-            const clone = userBubbles[userBubbles.length - 1].cloneNode(true);
-            const meta = clone.querySelector('.msg-meta');
-            if (meta) meta.remove();
-            lastUserQ = clone.innerText.replace(/Khách hàng:/g, '').replace(/👤/g, '').trim();
-        }
-    }
+    renderModalQAPairs();
+}
 
-    if (!lastCSA) {
-        const msgContainer = document.getElementById('detail-messages-container');
-        const csBubbles = msgContainer.querySelectorAll('.msg-bubble.human_cs');
-        if (csBubbles.length > 0) {
-            const clone = csBubbles[csBubbles.length - 1].cloneNode(true);
-            const meta = clone.querySelector('.msg-meta');
-            if (meta) meta.remove();
-            lastCSA = clone.innerText.replace(/Chuyên viên CSKH:/g, '').replace(/CSKH:/g, '').replace(/👨‍💼/g, '').trim();
-        }
-    }
+function renderModalQAPairs() {
+    const container = document.getElementById('modal-qa-pairs-container');
+    const countEl = document.getElementById('modal-qa-count');
+    if (countEl) countEl.innerText = extractedQAPairs.length;
 
-    document.getElementById('modal-extract-q').value = lastUserQ;
-    document.getElementById('modal-extract-a').value = lastCSA;
+    if (!container) return;
+
+    container.innerHTML = extractedQAPairs.map((pair, idx) => `
+        <div class="qa-pair-card" id="qa-pair-card-${idx}">
+            <div class="qa-pair-header">
+                <span class="qa-pair-badge">Cặp Q&amp;A #${idx + 1}</span>
+                ${extractedQAPairs.length > 1 ? `<button type="button" class="btn-remove-qa" onclick="removeQAPair(${idx})">✕ Xóa</button>` : ''}
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+                <label>❓ Câu hỏi của Khách hàng:</label>
+                <input type="text" class="qa-input-q" id="qa-q-${idx}" value="${escapeHtml(pair.question)}" placeholder="Ví dụ: trade forex có được không?" />
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>💡 Câu trả lời chuẩn của CSKH:</label>
+                <textarea class="qa-input-a" id="qa-a-${idx}" rows="2" placeholder="Ví dụ: Đông Đô hiện chưa hỗ trợ trade Forex.">${escapeHtml(pair.answer)}</textarea>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addManualQAPair(q = '', a = '') {
+    // Lưu các giá trị người dùng đang gõ hiện tại
+    syncInputsToQAPairs();
+    extractedQAPairs.push({ question: q, answer: a });
+    renderModalQAPairs();
+}
+
+function removeQAPair(idx) {
+    syncInputsToQAPairs();
+    extractedQAPairs.splice(idx, 1);
+    renderModalQAPairs();
+}
+
+function syncInputsToQAPairs() {
+    extractedQAPairs.forEach((_, idx) => {
+        const qEl = document.getElementById(`qa-q-${idx}`);
+        const aEl = document.getElementById(`qa-a-${idx}`);
+        if (qEl) extractedQAPairs[idx].question = qEl.value;
+        if (aEl) extractedQAPairs[idx].answer = aEl.value;
+    });
 }
 
 function toggleModalLearnFields(isChecked) {
@@ -432,12 +483,16 @@ async function submitResolveCase() {
     const note = document.getElementById('modal-resolve-note').value.trim();
     const enableLearn = document.getElementById('modal-enable-learn').checked;
 
-    let q = '';
-    let a = '';
+    syncInputsToQAPairs();
+
+    let validPairs = [];
     if (enableLearn) {
-        q = document.getElementById('modal-extract-q').value.trim();
-        a = document.getElementById('modal-extract-a').value.trim();
+        validPairs = extractedQAPairs.filter((p) => p.question.trim() && p.answer.trim()).map((p) => ({
+            question: p.question.trim(),
+            answer: p.answer.trim(),
+        }));
     }
+
     const agentName = currentAgent.full_name || currentAgent.username || 'Chuyên viên CSKH';
 
     try {
@@ -447,8 +502,9 @@ async function submitResolveCase() {
             body: JSON.stringify({
                 agent_name: agentName,
                 resolution_note: note,
-                extract_question: q,
-                extract_answer: a,
+                extract_pairs: validPairs,
+                extract_question: validPairs.length > 0 ? validPairs[0].question : '',
+                extract_answer: validPairs.length > 0 ? validPairs[0].answer : '',
             }),
         });
 
