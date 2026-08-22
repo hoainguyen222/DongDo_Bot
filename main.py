@@ -330,7 +330,7 @@ async def logout(user: dict = Depends(get_current_user)):
 # ============================================================
 # Main Endpoints
 # ============================================================
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def serve_frontend():
     """Serve the frontend chat UI."""
     index_path = os.path.join(frontend_dir, "index.html")
@@ -339,9 +339,9 @@ async def serve_frontend():
     return {"message": "Đông Đô CS Chatbot API is running. Frontend not found."}
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint (supports GET & HEAD for uptime monitors)."""
     return {
         "status": "healthy",
         "llm_ready": llm is not None,
