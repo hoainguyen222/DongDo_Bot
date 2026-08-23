@@ -231,7 +231,10 @@ async function loadCasesList() {
             <div class="case-card ${c.session_id === activeSessionId ? 'active' : ''}" onclick="selectCase('${c.session_id}')">
                 <div class="top">
                     <span class="user">👤 ${escapeHtml(c.user_id || c.customer_name || 'Khách hàng')}</span>
-                    <span class="time">${formatTime(c.updated_at)}</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span class="time">${formatTime(c.updated_at)}</span>
+                        <button type="button" class="btn-delete-case-item" onclick="event.stopPropagation(); deleteSingleCase('${c.session_id}')" title="Xóa case này">✕</button>
+                    </div>
                 </div>
                 <div class="query">${escapeHtml(c.last_user_query || 'Chưa có tin nhắn')}</div>
                 <div style="margin-top: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
@@ -242,6 +245,51 @@ async function loadCasesList() {
         `).join('');
     } catch (err) {
         console.error('Error loading cases:', err);
+    }
+}
+
+async function clearAllCases() {
+    if (!confirm("⚠️ Bạn có chắc chắn muốn XÓA TOÀN BỘ danh sách case hỗ trợ và lịch sử chat đã test để bàn giao sạch sẽ cho team CSKH không?")) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/cases/clear-all', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+        const data = await res.json();
+        if (res.ok) {
+            activeSessionId = null;
+            document.getElementById('empty-chat-state').classList.remove('hidden');
+            document.getElementById('chat-detail-container').classList.add('hidden');
+            loadCasesList();
+            alert(data.message || "Đã xóa toàn bộ case test thành công!");
+        } else {
+            alert("Lỗi: " + (data.detail || "Không thể xóa"));
+        }
+    } catch (e) {
+        alert("Lỗi kết nối: " + e.message);
+    }
+}
+
+async function deleteSingleCase(sessionId) {
+    if (!confirm("Bạn có chắc muốn xóa case này khỏi danh sách?")) return;
+    try {
+        const res = await fetch(`/api/admin/cases/${sessionId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+        });
+        if (res.ok) {
+            if (activeSessionId === sessionId) {
+                activeSessionId = null;
+                document.getElementById('empty-chat-state').classList.remove('hidden');
+                document.getElementById('chat-detail-container').classList.add('hidden');
+            }
+            loadCasesList();
+        }
+    } catch (e) {
+        alert("Lỗi xóa case: " + e.message);
     }
 }
 

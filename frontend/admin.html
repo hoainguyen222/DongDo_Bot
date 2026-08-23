@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/admin.css?v=8.0.0">
+    <link rel="stylesheet" href="/static/admin.css?v=9.0.0">
 </head>
 
 <body>
@@ -167,7 +167,10 @@
                     <!-- Cases List Panel -->
                     <div class="cases-panel card">
                         <div class="panel-header">
-                            <h3>Danh Sách Case Hỗ Trợ</h3>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <h3 style="margin: 0;">Danh Sách Case Hỗ Trợ</h3>
+                                <button type="button" class="btn-clear-all-cases" onclick="clearAllCases()" title="Xóa toàn bộ danh sách case test">🗑️ Xóa tất cả</button>
+                            </div>
                             <div class="filter-group">
                                 <button class="btn-filter active" onclick="filterCases('')">Tất cả</button>
                                 <button class="btn-filter" onclick="filterCases('NEEDS_HUMAN_CS')">Chờ CSKH</button>
@@ -443,7 +446,7 @@
         </div>
     </div>
 
-    <script src="/static/admin.js?v=8.0.0"></script>
+    <script src="/static/admin.js?v=9.0.0"></script>
 </body>
 
 </html>

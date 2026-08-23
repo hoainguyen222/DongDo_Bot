@@ -579,6 +579,41 @@ body {
     border-bottom: 1px solid var(--border-subtle);
 }
 
+.btn-clear-all-cases {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-clear-all-cases:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: #ef4444;
+    color: #fee2e2;
+}
+
+.btn-delete-case-item {
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: 4px;
+    transition: all var(--transition-fast);
+    line-height: 1;
+}
+
+.btn-delete-case-item:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+}
+
 .filter-group {
     display: flex;
     gap: 6px;

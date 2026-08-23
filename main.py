@@ -617,6 +617,23 @@ async def api_resolve_case(
     return {"success": True, "auto_learned": False, "message": "Đã đóng case thành công."}
 
 
+@app.post("/api/admin/cases/clear-all")
+async def api_clear_all_cases(user: dict = Depends(get_current_user)):
+    """Xóa toàn bộ danh sách case hỗ trợ, lịch sử chat và hàng đợi tri thức test."""
+    clear_all_cases()
+    conversation_memories.clear()
+    return {"success": True, "message": "Đã xóa sạch toàn bộ danh sách case hỗ trợ và lịch sử chat test thành công!"}
+
+
+@app.delete("/api/admin/cases/{session_id}")
+async def api_delete_case(session_id: str, user: dict = Depends(get_current_user)):
+    """Xóa 1 case hỗ trợ và lịch sử chat của nó."""
+    delete_chat_case(session_id)
+    if session_id in conversation_memories:
+        del conversation_memories[session_id]
+    return {"success": True, "message": f"Đã xóa case {session_id} thành công!"}
+
+
 # ============================================================
 # CSKH Portal API: Continuous Learning Queue (Tab 2)
 # ============================================================

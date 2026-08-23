@@ -738,6 +738,30 @@ def resolve_chat_case(session_id: str, cs_username: str, resolution_note: str = 
     return True
 
 
+def delete_chat_case(session_id: str) -> bool:
+    """Xóa một case cụ thể và tin nhắn của session đó."""
+    ph = _placeholder()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM chat_cases WHERE session_id = {ph}", (session_id,))
+        cursor.execute(f"DELETE FROM chat_history WHERE session_id = {ph}", (session_id,))
+        cursor.execute(f"DELETE FROM learning_queue WHERE session_id = {ph}", (session_id,))
+        conn.commit()
+    return True
+
+
+def clear_all_cases() -> bool:
+    """Xóa toàn bộ danh sách case hỗ trợ, tin nhắn và hàng đợi tri thức test."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM chat_cases")
+        cursor.execute("DELETE FROM chat_history")
+        cursor.execute("DELETE FROM learning_queue")
+        conn.commit()
+    return True
+
+
+
 # ============================================================
 # Learning Queue Operations
 # ============================================================
