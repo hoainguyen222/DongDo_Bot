@@ -160,21 +160,26 @@
         }
 
         try {
-            const formData = new FormData();
-            formData.append('username', username);
-            formData.append('password', password);
-
             const res = await fetch(`${API_BASE}/auth/login`, {
                 method: 'POST',
-                body: formData,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
             });
 
             const data = await res.json();
             if (res.ok && data.token) {
                 localStorage.setItem(TOKEN_KEY, data.token);
-                setLoggedInUser(data.user);
+                setLoggedInUser(data);
             } else {
-                showLoginModal(data.detail || 'Tên đăng nhập hoặc mật khẩu không chính xác');
+                let errText = 'Tên đăng nhập hoặc mật khẩu không chính xác.';
+                if (typeof data.detail === 'string') {
+                    errText = data.detail;
+                } else if (Array.isArray(data.detail) && data.detail.length > 0) {
+                    errText = data.detail[0].msg || 'Dữ liệu không hợp lệ.';
+                } else if (data.message && typeof data.message === 'string') {
+                    errText = data.message;
+                }
+                showLoginModal(errText);
             }
         } catch (err) {
             showLoginModal('Lỗi kết nối máy chủ: ' + err.message);
