@@ -427,6 +427,44 @@ body {
     gap: 8px;
 }
 
+.customer-profile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+}
+
+.customer-profile .user-badge {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #93c5fd;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.btn-client-logout {
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.btn-client-logout:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+}
+
 .user-pill {
     display: flex;
     align-items: center;

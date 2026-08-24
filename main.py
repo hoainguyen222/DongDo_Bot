@@ -421,9 +421,12 @@ async def health_check():
 # Public Chat Endpoints (Khách hàng)
 # ============================================================
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    user: dict = Depends(get_current_user),
+):
     """
-    Chat endpoint cho Khách hàng (Trực tiếp, không cần login).
+    Chat endpoint cho Khách hàng (Yêu cầu đăng nhập tài khoản Khách hàng).
     """
     if not request.message or not request.message.strip():
         raise HTTPException(status_code=400, detail="Message không được để trống")
@@ -436,6 +439,7 @@ async def chat(request: ChatRequest):
 
     session_id = request.session_id or f"session-{int(datetime.now().timestamp()*1000)}-{uuid.uuid4().hex[:6]}"
     clean_msg = request.message.strip()
+    customer_display_name = user.get("full_name") or user.get("username") or "Khách hàng"
 
     try:
         reply, sources, is_fallback = await generate_response(clean_msg, session_id)
@@ -443,7 +447,7 @@ async def chat(request: ChatRequest):
         case_status = "NEEDS_HUMAN_CS" if is_fallback else "AI_ACTIVE"
         upsert_chat_case(
             session_id=session_id,
-            customer_name="Khách hàng",
+            customer_name=customer_display_name,
             status=case_status,
             last_user_query=clean_msg,
         )

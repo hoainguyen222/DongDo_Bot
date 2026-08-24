@@ -252,14 +252,22 @@ def init_database():
 
         conn.commit()
 
-        # Danh sách các tài khoản nội bộ mặc định
+        # Danh sách các tài khoản nội bộ và khách hàng mặc định
         default_accounts = [
+            # Quản trị viên
             ("admin", "DongDo@2026", "Quản trị viên Đông Đô", "admin"),
-            ("cskh01", "DongDo@123", "Chuyên viên CSKH 01", "user"),
-            ("cskh02", "DongDo@123", "Chuyên viên CSKH 02", "user"),
-            ("cskh03", "DongDo@123", "Chuyên viên CSKH 03", "user"),
-            ("cskh04", "DongDo@123", "Chuyên viên CSKH 04", "user"),
-            ("cskh05", "DongDo@123", "Chuyên viên CSKH 05", "user"),
+            # 5 Tài khoản Chuyên viên CSKH
+            ("cskh01", "DongDo@123", "Chuyên viên CSKH 01", "cskh"),
+            ("cskh02", "DongDo@123", "Chuyên viên CSKH 02", "cskh"),
+            ("cskh03", "DongDo@123", "Chuyên viên CSKH 03", "cskh"),
+            ("cskh04", "DongDo@123", "Chuyên viên CSKH 04", "cskh"),
+            ("cskh05", "DongDo@123", "Chuyên viên CSKH 05", "cskh"),
+            # 5 Tài khoản Khách hàng đăng nhập Chat
+            ("khach01", "DongDo@123", "Khách hàng 01", "customer"),
+            ("khach02", "DongDo@123", "Khách hàng 02", "customer"),
+            ("khach03", "DongDo@123", "Khách hàng 03", "customer"),
+            ("khach04", "DongDo@123", "Khách hàng 04", "customer"),
+            ("khach05", "DongDo@123", "Khách hàng 05", "customer"),
         ]
 
         now = datetime.now().isoformat()
@@ -273,7 +281,7 @@ def init_database():
                     (uname, pw_hash, salt, fname, role, now)
                 )
                 conn.commit()
-                print(f"🔑 Đã khởi tạo tài khoản mặc định: {uname}")
+                print(f"🔑 Đã khởi tạo tài khoản mặc định: {uname} ({role})")
 
         # Cài đặt mặc định
         default_settings = [

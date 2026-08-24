@@ -1,6 +1,6 @@
 /**
  * Đông Đô CS Chatbot - Client-side Logic (Khách Hàng)
- * Handles instant guest chat, API calls, real-time CS polling
+ * Handles customer authentication, chat, API calls, real-time CS polling
  */
 
 (function () {
@@ -11,15 +11,27 @@
     // ============================================================
     const API_BASE = window.location.origin;
     const API_CHAT = `${API_BASE}/chat`;
+    const TOKEN_KEY = 'dongdo_client_token';
 
     let sessionId = getOrCreateSessionId();
     let isWaiting = false;
     let csPollTimer = null;
     let displayedMessageCount = 0;
+    let currentCustomer = null;
 
     // ============================================================
     // DOM Elements
     // ============================================================
+    const clientLoginOverlay = document.getElementById('clientLoginOverlay');
+    const clientLoginForm = document.getElementById('clientLoginForm');
+    const clientUsernameInput = document.getElementById('clientUsername');
+    const clientPasswordInput = document.getElementById('clientPassword');
+    const clientLoginError = document.getElementById('clientLoginError');
+    const btnClientLogin = document.getElementById('btnClientLogin');
+    const customerProfile = document.getElementById('customerProfile');
+    const clientUserName = document.getElementById('clientUserName');
+    const btnClientLogout = document.getElementById('btnClientLogout');
+
     const chatMessages = document.getElementById('chatMessages');
     const welcomeScreen = document.getElementById('welcomeScreen');
     const messageInput = document.getElementById('messageInput');
@@ -32,23 +44,179 @@
     // Session Management
     // ============================================================
     function getOrCreateSessionId() {
-        let sid = sessionStorage.getItem('dongdo_guest_session_id');
+        let sid = sessionStorage.getItem('dongdo_client_session_id');
         if (!sid) {
             sid = 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
-            sessionStorage.setItem('dongdo_guest_session_id', sid);
+            sessionStorage.setItem('dongdo_client_session_id', sid);
         }
         return sid;
     }
 
     function createNewSession() {
         const sid = 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
-        sessionStorage.setItem('dongdo_guest_session_id', sid);
+        sessionStorage.setItem('dongdo_client_session_id', sid);
         return sid;
+    }
+
+    // ============================================================
+    // Authentication Management
+    // ============================================================
+    function getAuthToken() {
+        return localStorage.getItem(TOKEN_KEY);
+    }
+
+    function getAuthHeaders() {
+        const token = getAuthToken();
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        return headers;
+    }
+
+    async function checkAuth() {
+        const token = getAuthToken();
+        if (!token) {
+            showLoginModal();
+            return false;
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/auth/me`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const user = await res.json();
+                setLoggedInUser(user);
+                return true;
+            } else {
+                localStorage.removeItem(TOKEN_KEY);
+                showLoginModal();
+                return false;
+            }
+        } catch (err) {
+            console.error('Auth verification failed:', err);
+            showLoginModal();
+            return false;
+        }
+    }
+
+    function showLoginModal(errorMsg = '') {
+        if (clientLoginOverlay) {
+            clientLoginOverlay.style.display = 'flex';
+            clientLoginOverlay.classList.remove('hidden');
+        }
+        if (customerProfile) {
+            customerProfile.style.display = 'none';
+        }
+        if (clientLoginError) {
+            if (errorMsg) {
+                clientLoginError.textContent = errorMsg;
+                clientLoginError.style.display = 'block';
+            } else {
+                clientLoginError.textContent = '';
+                clientLoginError.style.display = 'none';
+            }
+        }
+        if (clientUsernameInput) {
+            setTimeout(() => clientUsernameInput.focus(), 200);
+        }
+    }
+
+    function hideLoginModal() {
+        if (clientLoginOverlay) {
+            clientLoginOverlay.style.display = 'none';
+            clientLoginOverlay.classList.add('hidden');
+        }
+    }
+
+    function setLoggedInUser(user) {
+        currentCustomer = user;
+        hideLoginModal();
+        if (customerProfile && clientUserName) {
+            customerProfile.style.display = 'flex';
+            clientUserName.textContent = `👤 ${user.full_name || user.username}`;
+        }
+        messageInput.focus();
+    }
+
+    async function handleLogin(e) {
+        e.preventDefault();
+        const username = clientUsernameInput.value.trim();
+        const password = clientPasswordInput.value;
+
+        if (!username || !password) {
+            showLoginModal('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu');
+            return;
+        }
+
+        btnClientLogin.disabled = true;
+        btnClientLogin.innerHTML = '<span>Đang đăng nhập...</span>';
+        if (clientLoginError) clientLoginError.style.display = 'none';
+
+        try {
+            const formData = new FormData();
+            formData.append('username', username);
+            formData.append('password', password);
+
+            const res = await fetch(`${API_BASE}/auth/login`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await res.json();
+            if (res.ok && data.token) {
+                localStorage.setItem(TOKEN_KEY, data.token);
+                setLoggedInUser(data.user);
+            } else {
+                showLoginModal(data.detail || 'Tên đăng nhập hoặc mật khẩu không chính xác');
+            }
+        } catch (err) {
+            showLoginModal('Lỗi kết nối máy chủ: ' + err.message);
+        } finally {
+            btnClientLogin.disabled = false;
+            btnClientLogin.innerHTML = `<span>Đăng Nhập Ngay</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>`;
+        }
+    }
+
+    function handleLogout() {
+        if (confirm('Bạn có chắc chắn muốn đăng xuất tài khoản?')) {
+            const token = getAuthToken();
+            if (token) {
+                fetch(`${API_BASE}/auth/logout`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }).catch(() => {});
+            }
+            localStorage.removeItem(TOKEN_KEY);
+            currentCustomer = null;
+            if (csPollTimer) {
+                clearInterval(csPollTimer);
+                csPollTimer = null;
+            }
+            sessionId = createNewSession();
+            displayedMessageCount = 0;
+            chatMessages.innerHTML = '';
+            chatMessages.appendChild(welcomeScreen);
+            welcomeScreen.classList.remove('hidden');
+            showLoginModal();
+        }
     }
 
     // ============================================================
     // Event Listeners
     // ============================================================
+    if (clientLoginForm) {
+        clientLoginForm.addEventListener('submit', handleLogin);
+    }
+
+    if (btnClientLogout) {
+        btnClientLogout.addEventListener('click', handleLogout);
+    }
+
     messageInput.addEventListener('input', () => {
         autoResize(messageInput);
         updateCharCount();
@@ -101,6 +269,12 @@
         const message = messageInput.value.trim();
         if (!message || isWaiting) return;
 
+        // Check if token exists
+        if (!getAuthToken()) {
+            showLoginModal('Vui lòng đăng nhập để bắt đầu trò chuyện.');
+            return;
+        }
+
         // Hide welcome screen
         welcomeScreen.classList.add('hidden');
 
@@ -121,7 +295,7 @@
         try {
             const response = await fetch(API_CHAT, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     session_id: sessionId,
                     message: message,
@@ -129,6 +303,11 @@
             });
 
             removeTypingIndicator(typingEl);
+
+            if (response.status === 401) {
+                showLoginModal('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+                return;
+            }
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -139,7 +318,7 @@
 
             if (data.session_id) {
                 sessionId = data.session_id;
-                sessionStorage.setItem('dongdo_guest_session_id', sessionId);
+                sessionStorage.setItem('dongdo_client_session_id', sessionId);
             }
 
             // Add response message
@@ -362,7 +541,6 @@
     // ============================================================
     // Init
     // ============================================================
-    messageInput.focus();
+    checkAuth();
     console.log('🚀 Đông Đô CS Chatbot initialized');
-    console.log(`🔑 Guest Session: ${sessionId}`);
 })();

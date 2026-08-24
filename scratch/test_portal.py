@@ -37,15 +37,31 @@ class TestCSKHPortal(unittest.TestCase):
     def tearDownClass(cls):
         cls.test_client_ctx.__exit__(None, None, None)
 
-    def test_01_public_chat_no_auth(self):
-        """Khách hàng có thể chat mà không cần token đăng nhập."""
-        res = self.client.post("/chat", json={"message": "Xin chào, Đông Đô Partners có những dịch vụ gì?"})
+    def test_01_customer_auth_and_chat(self):
+        """Khách hàng bắt buộc đăng nhập để chat."""
+        # 1. Chat không có token -> 401
+        res_no_auth = self.client.post("/chat", json={"message": "Xin chào, Đông Đô Partners có những dịch vụ gì?"})
+        self.assertEqual(res_no_auth.status_code, 401)
+
+        # 2. Khách hàng đăng nhập khach01 / DongDo@123
+        login_res = self.client.post("/auth/login", json={"username": "khach01", "password": "DongDo@123"})
+        self.assertEqual(login_res.status_code, 200)
+        data_login = login_res.json()
+        self.assertIn("token", data_login)
+        self.__class__.customer_token = data_login["token"]
+
+        # 3. Chat có token -> 200 OK
+        res = self.client.post(
+            "/chat",
+            json={"message": "Xin chào, Đông Đô Partners có những dịch vụ gì?"},
+            headers={"Authorization": f"Bearer {self.customer_token}"},
+        )
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertIn("reply", data)
         self.assertIn("session_id", data)
         self.assertIn("status", data)
-        print("✅ Test 1 Passed: Public Guest Chat OK (Status:", data["status"], ")")
+        print("✅ Test 1 Passed: Customer Auth & Chat OK (Status:", data["status"], ")")
 
     def test_02_cskh_login(self):
         """Chuyên viên CSKH đăng nhập thành công với tài khoản mặc định."""
@@ -69,10 +85,14 @@ class TestCSKHPortal(unittest.TestCase):
     def test_04_fallback_and_case_creation(self):
         """Câu hỏi ngoài dữ liệu kích hoạt fallback và tạo case NEEDS_HUMAN_CS."""
         session_id = "test-session-fallback-999"
-        res = self.client.post("/chat", json={
-            "session_id": session_id,
-            "message": "Cho tôi hỏi quả cam bao nhiêu tiền một cân?"
-        })
+        res = self.client.post(
+            "/chat",
+            json={
+                "session_id": session_id,
+                "message": "Cho tôi hỏi quả cam bao nhiêu tiền một cân?"
+            },
+            headers={"Authorization": f"Bearer {self.customer_token}"},
+        )
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertEqual(data["status"], "NEEDS_HUMAN_CS")
