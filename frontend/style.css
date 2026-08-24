@@ -192,11 +192,11 @@ body {
 }
 
 .form-group label {
-    font-size: 0.78rem;
-    font-weight: 600;
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 500;
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    margin-bottom: 7px;
 }
 
 .input-icon-wrapper {

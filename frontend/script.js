@@ -113,9 +113,11 @@
             if (errorMsg) {
                 clientLoginError.textContent = errorMsg;
                 clientLoginError.style.display = 'block';
+                clientLoginError.classList.add('visible');
             } else {
                 clientLoginError.textContent = '';
                 clientLoginError.style.display = 'none';
+                clientLoginError.classList.remove('visible');
             }
         }
         if (clientUsernameInput) {
@@ -152,7 +154,10 @@
 
         btnClientLogin.disabled = true;
         btnClientLogin.innerHTML = '<span>Đang đăng nhập...</span>';
-        if (clientLoginError) clientLoginError.style.display = 'none';
+        if (clientLoginError) {
+            clientLoginError.style.display = 'none';
+            clientLoginError.classList.remove('visible');
+        }
 
         try {
             const formData = new FormData();
@@ -175,10 +180,7 @@
             showLoginModal('Lỗi kết nối máy chủ: ' + err.message);
         } finally {
             btnClientLogin.disabled = false;
-            btnClientLogin.innerHTML = `<span>Đăng Nhập Ngay</span>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>`;
+            btnClientLogin.innerHTML = '<span>Đăng nhập Chat Tư Vấn</span>';
         }
     }
 
