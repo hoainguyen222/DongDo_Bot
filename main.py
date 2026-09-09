@@ -515,89 +515,36 @@ async def chat(
         current_status = existing_case.get("status") if existing_case else "AI_ACTIVE"
         assigned_cs = existing_case.get("assigned_cs") if existing_case else None
 
-        # 1. Chuyên viên CSKH đang trực tiếp trò chuyện với KH (HUMAN_CS_ACTIVE): AI tuyệt đối không can thiệp
-        if current_status == "HUMAN_CS_ACTIVE":
+        # Nếu case đang ở trạng thái "Chờ CSKH" (NEEDS_HUMAN_CS) hoặc "CSKH đang xử lý" (HUMAN_CS_ACTIVE):
+        # AI TẮT HOÀN TOÀN! Khách hỏi gì AI cũng KHÔNG ĐƯỢC trả lời!
+        # Chỉ lưu tin nhắn KH vào lịch sử và hiển thị thông báo chờ màu vàng:
+        if current_status in ("NEEDS_HUMAN_CS", "HUMAN_CS_ACTIVE"):
             save_message(session_id, "user", clean_msg)
             add_to_conversation(session_id, "user", clean_msg)
             upsert_chat_case(
                 session_id=session_id,
                 customer_name=customer_display_name,
-                status="HUMAN_CS_ACTIVE",
+                status=current_status,
                 last_user_query=clean_msg,
             )
-            wait_msg = f"Dạ anh/chị vui lòng chờ, chuyên viên {assigned_cs} đang hỗ trợ trực tiếp ạ." if assigned_cs else "Dạ anh/chị vui lòng chờ trong giây lát, chuyên viên CSKH đang hỗ trợ anh/chị ạ."
+
+            if current_status == "HUMAN_CS_ACTIVE" and assigned_cs:
+                wait_msg = f"Dạ anh/chị vui lòng chờ, chuyên viên {assigned_cs} đang hỗ trợ trực tiếp ạ."
+            else:
+                wait_msg = "Dạ anh/chị vui lòng chờ trong giây lát, chuyên viên CSKH sẽ hỗ trợ anh/chị ngay ạ."
+
             return ChatResponse(
                 reply=wait_msg,
                 session_id=session_id,
                 sources=[],
                 waiting_for_cs=True,
-                status="HUMAN_CS_ACTIVE",
+                status=current_status,
                 cs_agent=assigned_cs,
                 ai_locked=True,
             )
 
-        # 2. Case đang "Chờ CSKH" (NEEDS_HUMAN_CS): CSKH chưa trả lời, KH hỏi thêm câu khác
-        # Kiểm tra xem câu hỏi mới có trong Cơ sở tri thức hay không
-        if current_status == "NEEDS_HUMAN_CS":
-            context, sources = retrieve_context(clean_msg)
-            if context and context.strip():
-                # Tìm thấy tri thức trong tài liệu! AI trả lời ngay và chuyển case về AI_ACTIVE ("AI đang tư vấn")
-                if llm is not None:
-                    reply, sources, is_fallback = await generate_response(clean_msg, session_id, save_user_msg=True)
-                    if not is_fallback:
-                        upsert_chat_case(
-                            session_id=session_id,
-                            customer_name=customer_display_name,
-                            status="AI_ACTIVE",
-                            last_user_query=clean_msg,
-                            force_status=True,
-                        )
-                        return ChatResponse(
-                            reply=reply,
-                            session_id=session_id,
-                            sources=sources,
-                            waiting_for_cs=False,
-                            status="AI_ACTIVE",
-                            cs_agent=None,
-                            ai_locked=False,
-                        )
-                    else:
-                        upsert_chat_case(
-                            session_id=session_id,
-                            customer_name=customer_display_name,
-                            status="NEEDS_HUMAN_CS",
-                            last_user_query=clean_msg,
-                        )
-                        return ChatResponse(
-                            reply=reply,
-                            session_id=session_id,
-                            sources=sources,
-                            waiting_for_cs=True,
-                            status="NEEDS_HUMAN_CS",
-                            cs_agent=None,
-                            ai_locked=False,
-                        )
-
-            # Không tìm thấy thông tin trong kho tri thức: tiếp tục giữ chờ CSKH
-            save_message(session_id, "user", clean_msg)
-            add_to_conversation(session_id, "user", clean_msg)
-            upsert_chat_case(
-                session_id=session_id,
-                customer_name=customer_display_name,
-                status="NEEDS_HUMAN_CS",
-                last_user_query=clean_msg,
-            )
-            return ChatResponse(
-                reply="Dạ anh/chị vui lòng chờ trong giây lát, chuyên viên CSKH sẽ hỗ trợ anh/chị ngay ạ.",
-                session_id=session_id,
-                sources=[],
-                waiting_for_cs=True,
-                status="NEEDS_HUMAN_CS",
-                cs_agent=None,
-                ai_locked=True,
-            )
-
-        # 3. Trạng thái bình thường: AI trả lời
+        # Trạng thái AI_ACTIVE (Ban đầu hoặc sau khi CSKH đã bấm nút "AI hỗ trợ tiếp"):
+        # Lúc này KH hỏi, AI sẽ tìm kiếm trong kho tri thức và trả lời:
         if llm is None:
             raise HTTPException(status_code=503, detail="LLM chưa được khởi tạo. Hãy set ANTHROPIC_API_KEY.")
 
@@ -606,6 +553,8 @@ async def chat(
 
         reply, sources, is_fallback = await generate_response(clean_msg, session_id, save_user_msg=True)
 
+        # Nếu CÓ trong tài liệu: case giữ nguyên AI_ACTIVE
+        # Nếu KHÔNG CÓ trong tài liệu: AI chuyển giao CSKH và case chuyển sang NEEDS_HUMAN_CS ("Chờ CSKH")
         case_status = "NEEDS_HUMAN_CS" if is_fallback else "AI_ACTIVE"
         upsert_chat_case(
             session_id=session_id,
@@ -739,31 +688,12 @@ async def api_resume_ai(
     # Chuyển trạng thái case về AI_ACTIVE (force_status bỏ qua luật bảo vệ)
     upsert_chat_case(session_id, status="AI_ACTIVE", assigned_cs=cs_name, force_status=True)
 
-    # KHÔNG gửi thông báo cho khách hàng biết đã bật lại AI (chuyển giao âm thầm)
-
-    # Tự động giải đáp câu hỏi đang chờ của khách hàng nếu có
-    history = get_session_history(session_id)
-    answered_pending = False
-    ai_reply_preview = ""
-    if history:
-        last_client_msg = history[-1]
-        if last_client_msg.get("role") == "user":
-            pending_query = (last_client_msg.get("content") or "").strip()
-            if pending_query and llm is not None and vector_store is not None:
-                try:
-                    reply, sources, is_fallback = await generate_response(pending_query, session_id, save_user_msg=False)
-                    answered_pending = True
-                    ai_reply_preview = reply[:120]
-                    if is_fallback:
-                        upsert_chat_case(session_id, status="NEEDS_HUMAN_CS", last_user_query=pending_query, force_status=True)
-                except Exception as e:
-                    print(f"❌ Error auto-answering pending query on resume-ai: {e}")
-
+    # KHÔNG gửi thông báo cho khách hàng biết đã bật lại AI
+    # KHÔNG tự ý re-generate câu hỏi cũ để tránh duplicate và tránh tự nhảy về NEEDS_HUMAN_CS.
+    # AI đã được mở khóa và sẵn sàng trả lời các câu hỏi tiếp theo của khách hàng.
     return {
         "success": True,
-        "message": f"Đã bật lại AI cho case {session_id}",
-        "answered_pending": answered_pending,
-        "ai_reply": ai_reply_preview,
+        "message": f"Đã bật lại mode AI hỗ trợ tiếp cho case {session_id}",
     }
 
 

@@ -454,14 +454,10 @@ async function resumeAI() {
             const data = await res.json().catch(() => ({}));
             loadCasesList();
             loadActiveCaseMessages(activeSessionId);
-            if (data.answered_pending) {
-                alert('✅ Đã bật lại AI thành công! AI đã tự động giải đáp câu hỏi đang chờ của khách hàng.');
-            } else {
-                alert('✅ Đã bật lại AI thành công! AI sẽ tự động trả lời các câu hỏi tiếp theo của khách hàng.');
-            }
+            alert('✅ Đã bật chế độ AI hỗ trợ tiếp! AI sẽ tự động trả lời các câu hỏi tiếp theo của khách hàng nếu có trong tài liệu.');
         } else {
             const data = await res.json().catch(() => ({}));
-            alert('Lỗi: ' + (data.detail || 'Không thể bật lại AI'));
+            alert('Lỗi: ' + (data.detail || 'Không thể bật AI hỗ trợ tiếp'));
         }
     } catch (err) {
         alert('Lỗi bật lại AI: ' + err.message);
