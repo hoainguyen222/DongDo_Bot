@@ -608,23 +608,20 @@ async def api_resume_ai(
     session_id: str,
     user: dict = Depends(get_current_user),
 ):
-    """CSKH yêu cầu AI tiếp tục tham gia trả lời trong cuộc hội thoại."""
+    """CSKH yêu cầu AI tiếp tục tham gia trả lời trong cuộc hội thoại (hoàn toàn âm thầm với KH)."""
     cs_name = user.get("full_name") or user.get("username") or "Chuyên viên CSKH"
 
     # Chuyển trạng thái case về AI_ACTIVE (force_status bỏ qua luật bảo vệ)
     upsert_chat_case(session_id, status="AI_ACTIVE", assigned_cs=cs_name, force_status=True)
 
-    # Ghi tin nhắn thông báo vào luồng chat cho KH biết
-    notice_msg = f"🤖 Chuyên viên {cs_name} đã bật lại AI hỗ trợ. AI sẽ tiếp tục hỗ trợ giải đáp thắc mắc cho anh/chị ạ."
-    save_message(session_id, "human_cs", notice_msg, username=user.get("username"))
-    add_to_conversation(session_id, "human_cs", notice_msg)
+    # KHÔNG gửi thông báo cho khách hàng biết đã bật lại AI (chuyển giao âm thầm)
 
     # Tự động giải đáp câu hỏi đang chờ của khách hàng nếu có
     history = get_session_history(session_id)
     answered_pending = False
     ai_reply_preview = ""
-    if len(history) >= 2:
-        last_client_msg = history[-2]  # Tin nhắn trước notice_msg
+    if history:
+        last_client_msg = history[-1]
         if last_client_msg.get("role") == "user":
             pending_query = (last_client_msg.get("content") or "").strip()
             if pending_query and llm is not None and vector_store is not None:
@@ -836,7 +833,7 @@ async def api_upload_document(
     user: dict = Depends(get_current_user),
 ):
     """Tải lên file tài liệu .docx mới, trích xuất text, chunking và nhúng thẳng vào ChromaDB."""
-    if not file.filename.endswith(".docx"):
+    if not file.filename.lower().endswith(".docx"):
         raise HTTPException(status_code=400, detail="Chỉ hỗ trợ định dạng file tài liệu Microsoft Word (.docx)")
 
     os.makedirs(DOCUMENTS_DIR, exist_ok=True)

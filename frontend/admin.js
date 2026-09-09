@@ -855,12 +855,15 @@ async function handleDocUpload(e) {
             fileInput.value = '';
             document.getElementById('dropzone-label').innerText = 'Kéo thả file .docx vào đây hoặc bấm chọn file';
             loadKnowledgeSummary();
+            alert(`✅ Nạp tri thức thành công!\n\n${data.message}`);
         } else {
             resultBox.innerText = `❌ Lỗi: ${data.detail || 'Không thể tải tài liệu'}`;
+            alert(`❌ Không thể tải tài liệu: ${data.detail || 'Vui lòng thử lại'}`);
         }
     } catch (err) {
         submitBtn.disabled = false;
         resultBox.innerText = `❌ Lỗi upload: ${err.message}`;
+        alert(`❌ Lỗi upload: ${err.message}`);
     }
 }
 
