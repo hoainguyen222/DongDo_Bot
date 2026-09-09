@@ -166,7 +166,7 @@ def add_to_conversation(session_id: str, role: str, content: str):
 # RAG Pipeline
 # ============================================================
 def retrieve_context(query: str) -> tuple[str, list[str]]:
-    """Truy xuất context từ Vector DB."""
+    """Truy xuất context từ Vector DB kết hợp Semantic Search và Keyword Matching."""
     if vector_store is None:
         return "", []
 
@@ -186,13 +186,41 @@ def retrieve_context(query: str) -> tuple[str, list[str]]:
 
     context_parts = []
     sources = set()
+    seen_contents = set()
+
     for doc, score in results:
         is_learned = doc.metadata.get("source") == "CSKH_Learning"
         # Chấp nhận tài liệu phù hợp hoặc là tri thức CSKH đã nạp
         if score >= 0.05 or is_learned:
-            context_parts.append(doc.page_content)
+            c_txt = doc.page_content.strip()
+            if c_txt and c_txt not in seen_contents:
+                context_parts.append(c_txt)
+                seen_contents.add(c_txt)
             if "source" in doc.metadata:
                 sources.add(doc.metadata["source"])
+
+    # Bổ sung Keyword Matching thông minh: đảm bảo các định nghĩa quan trọng (như Biên độ giá, Hợp đồng 3-mounth, v.v.) luôn có mặt trong context
+    try:
+        clean_q = query.lower().replace("?", " ").replace("!", " ").replace(".", " ").replace(",", " ")
+        stop_words = {"cho", "hỏi", "biết", "được", "không", "như", "nào", "gì", "em", "anh", "chị", "tôi", "với", "của", "và", "là", "các", "có", "trong", "về", "những"}
+        keywords = [w.strip() for w in clean_q.split() if len(w.strip()) >= 2 and w.strip() not in stop_words]
+
+        if len(keywords) >= 2 and vector_store._collection:
+            min_match = max(2, len(keywords))
+            col_data = vector_store._collection.get()
+            docs = col_data.get("documents", [])
+            metas = col_data.get("metadatas", [])
+            for d_idx, doc_text in enumerate(docs):
+                doc_lower = doc_text.lower()
+                match_count = sum(1 for kw in keywords if kw in doc_lower)
+                if match_count >= min_match and doc_text.strip() not in seen_contents:
+                    c_txt = doc_text.strip()
+                    context_parts.append(c_txt)
+                    seen_contents.add(c_txt)
+                    if metas and d_idx < len(metas) and "source" in metas[d_idx]:
+                        sources.add(metas[d_idx]["source"])
+    except Exception as ke:
+        print(f"⚠️ Keyword matching err: {ke}")
 
     context = "\n\n---\n\n".join(context_parts)
     return context, list(sources)
