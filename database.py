@@ -163,6 +163,18 @@ def init_database():
                     setting_value TEXT NOT NULL
                 )
             """)
+
+            # Table Uploaded Documents (Lưu trữ file upload vĩnh viễn trên Postgres Render)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS uploaded_documents (
+                    id SERIAL PRIMARY KEY,
+                    filename TEXT UNIQUE NOT NULL,
+                    file_data BYTEA,
+                    size_kb REAL,
+                    chunk_count INTEGER DEFAULT 0,
+                    uploaded_at TEXT NOT NULL
+                )
+            """)
         else:
             # Table Chat History
             cursor.execute("""
@@ -247,6 +259,18 @@ def init_database():
                 CREATE TABLE IF NOT EXISTS system_settings (
                     setting_key TEXT PRIMARY KEY,
                     setting_value TEXT NOT NULL
+                )
+            """)
+
+            # Table Uploaded Documents (Lưu trữ file upload vĩnh viễn trên SQLite)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS uploaded_documents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    filename TEXT UNIQUE NOT NULL,
+                    file_data BLOB,
+                    size_kb REAL,
+                    chunk_count INTEGER DEFAULT 0,
+                    uploaded_at TEXT NOT NULL
                 )
             """)
 
@@ -966,3 +990,88 @@ def get_analytics_stats() -> dict:
         "total_learned_qa": total_learned_qa,
         "pending_learn_count": pending_qa,
     }
+
+
+# ============================================================
+# Uploaded Documents (Persistent Storage) Operations
+# ============================================================
+def save_uploaded_document(
+    filename: str,
+    file_bytes: bytes,
+    size_kb: float,
+    chunk_count: int,
+) -> bool:
+    """Lưu tài liệu upload vào Database để tồn tại vĩnh viễn qua các lần deploy."""
+    ph = _placeholder()
+    now = datetime.now().isoformat()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT id FROM uploaded_documents WHERE filename = {ph}", (filename,))
+        row = cursor.fetchone()
+
+        if USE_POSTGRES:
+            import psycopg2
+            file_val = psycopg2.Binary(file_bytes)
+        else:
+            file_val = file_bytes
+
+        if row:
+            cursor.execute(
+                f"UPDATE uploaded_documents SET file_data = {ph}, size_kb = {ph}, chunk_count = {ph}, uploaded_at = {ph} WHERE filename = {ph}",
+                (file_val, size_kb, chunk_count, now, filename),
+            )
+        else:
+            cursor.execute(
+                f"INSERT INTO uploaded_documents (filename, file_data, size_kb, chunk_count, uploaded_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph})",
+                (filename, file_val, size_kb, chunk_count, now),
+            )
+        conn.commit()
+    return True
+
+
+def list_uploaded_documents() -> list[dict]:
+    """Lấy danh sách các tài liệu đã upload từ Database (không load BLOB dữ liệu)."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, filename, size_kb, chunk_count, uploaded_at FROM uploaded_documents ORDER BY uploaded_at DESC"
+        )
+        rows = cursor.fetchall()
+    return [
+        {
+            "id": r[0],
+            "filename": r[1],
+            "size_kb": r[2],
+            "chunk_count": r[3],
+            "uploaded_at": r[4],
+        }
+        for r in rows
+    ]
+
+
+def get_uploaded_document_bytes(filename: str) -> bytes | None:
+    """Lấy nội dung file nhị phân của tài liệu đã upload."""
+    ph = _placeholder()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT file_data FROM uploaded_documents WHERE filename = {ph}", (filename,))
+        row = cursor.fetchone()
+        if row and row[0]:
+            data = row[0]
+            if hasattr(data, "tobytes"):
+                return data.tobytes()
+            elif isinstance(data, memoryview):
+                return bytes(data)
+            return bytes(data)
+    return None
+
+
+def delete_uploaded_document(filename: str) -> bool:
+    """Xóa tài liệu khỏi Database."""
+    ph = _placeholder()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM uploaded_documents WHERE filename = {ph}", (filename,))
+        conn.commit()
+    return True
+

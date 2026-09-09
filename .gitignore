@@ -5,3 +5,4 @@ __pycache__/
 chat_history.db
 vectordb/
 .DS_Store
+scratch/

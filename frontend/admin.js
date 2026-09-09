@@ -796,7 +796,7 @@ async function loadKnowledgeSummary() {
         const tbody = document.getElementById('docs-list-tbody');
         const docs = data.documents || [];
         if (docs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3">Chưa có tài liệu nào trong thư mục tailieu/</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-secondary);">Chưa có tài liệu nào trong thư mục tailieu/</td></tr>';
             return;
         }
 
@@ -805,10 +805,38 @@ async function loadKnowledgeSummary() {
                 <td>📄 <strong>${escapeHtml(d.filename)}</strong></td>
                 <td>${d.size_kb} KB</td>
                 <td><span class="status-badge RESOLVED" style="color:#10b981;border-color:rgba(16,185,129,0.3);">Đã Embed Index</span></td>
+                <td style="text-align: center;">
+                    <button class="btn-action danger btn-sm" onclick="deleteKnowledgeDoc('${escapeHtml(d.filename)}')" title="Xóa khỏi tailieu/, Database và ChromaDB">
+                        🗑️ Xóa
+                    </button>
+                </td>
             </tr>
         `).join('');
     } catch (err) {
         console.error('Error loading knowledge summary:', err);
+    }
+}
+
+async function deleteKnowledgeDoc(filename) {
+    if (!confirm(`⚠️ XÁC NHẬN XÓA TÀI LIỆU:\n\n"${filename}"\n\nTài liệu này sẽ được xóa khỏi thư mục tailieu/, xóa khỏi Database và toàn bộ Vector Chunks trong ChromaDB sẽ bị gỡ bỏ ngay lập tức!`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/admin/knowledge/${encodeURIComponent(filename)}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert(`✅ ${data.message}`);
+            loadKnowledgeSummary();
+        } else {
+            alert(`❌ Không thể xóa: ${data.detail || 'Lỗi hệ thống'}`);
+        }
+    } catch (err) {
+        console.error('Error deleting doc:', err);
+        alert(`❌ Lỗi kết nối khi xóa: ${err.message}`);
     }
 }
 

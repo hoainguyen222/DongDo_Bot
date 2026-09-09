@@ -59,6 +59,10 @@ from database import (
     get_analytics_stats,
     get_setting,
     set_setting,
+    save_uploaded_document,
+    list_uploaded_documents,
+    get_uploaded_document_bytes,
+    delete_uploaded_document,
 )
 from ingest import extract_text_from_docx
 
@@ -279,6 +283,47 @@ async def lifespan(app: FastAPI):
             )
         except Exception as e:
             print(f"❌ Lỗi tự động ingest: {e}")
+
+    # 3.1. Đồng bộ các tài liệu đã tải lên từ Database (bảo toàn tri thức qua các lần deploy Render)
+    try:
+        os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+        persisted_docs = list_uploaded_documents()
+        if persisted_docs:
+            print(f"📥 Tìm thấy {len(persisted_docs)} tài liệu upload trong Database, đang đồng bộ...")
+            for pdoc in persisted_docs:
+                fname = pdoc["filename"]
+                fpath = os.path.join(DOCUMENTS_DIR, fname)
+                if not os.path.exists(fpath):
+                    fbytes = get_uploaded_document_bytes(fname)
+                    if fbytes:
+                        with open(fpath, "wb") as bf:
+                            bf.write(fbytes)
+                        print(f"   💾 Đã khôi phục file vào tailieu/: {fname}")
+
+                if vector_store and os.path.exists(fpath):
+                    try:
+                        existing_chunks = vector_store._collection.get(where={"source": fname})
+                        if not existing_chunks or not existing_chunks.get("ids"):
+                            doc_text = extract_text_from_docx(fpath)
+                            if doc_text and doc_text.strip():
+                                ts = RecursiveCharacterTextSplitter(
+                                    chunk_size=CHUNK_SIZE,
+                                    chunk_overlap=CHUNK_OVERLAP,
+                                    length_function=len,
+                                    separators=["\n\n", "\n", ". ", ", ", " ", ""],
+                                )
+                                d_chunks = ts.split_text(doc_text)
+                                d_metas = [
+                                    {"source": fname, "chunk_id": i, "ingested_at": pdoc["uploaded_at"], "type": "uploaded_doc"}
+                                    for i in range(len(d_chunks))
+                                ]
+                                d_ids = [f"db_sync_{int(datetime.now().timestamp())}_{i}" for i in range(len(d_chunks))]
+                                vector_store.add_texts(texts=d_chunks, metadatas=d_metas, ids=d_ids)
+                                print(f"   ⚡ Đã nạp {len(d_chunks)} chunks của tài liệu '{fname}' vào VectorDB")
+                    except Exception as ve:
+                        print(f"   ⚠️ Lỗi index tài liệu {fname}: {ve}")
+    except Exception as se:
+        print(f"⚠️ Lỗi đồng bộ tài liệu từ Database: {se}")
 
     # 4. Khởi tạo LLM
     current_model = get_setting("llm_model", LLM_MODEL)
@@ -813,11 +858,29 @@ async def api_get_knowledge(user: dict = Depends(get_current_user)):
     # Lấy danh sách file .docx trong thư mục tailieu
     os.makedirs(DOCUMENTS_DIR, exist_ok=True)
     docx_files = glob.glob(os.path.join(DOCUMENTS_DIR, "*.docx"))
+
+    db_docs = {d["filename"]: d for d in list_uploaded_documents()}
     doc_list = []
+    seen = set()
+
     for fpath in docx_files:
         fname = os.path.basename(fpath)
         fsize = round(os.path.getsize(fpath) / 1024, 1)
-        doc_list.append({"filename": fname, "size_kb": fsize})
+        seen.add(fname)
+        doc_list.append({
+            "filename": fname,
+            "size_kb": fsize,
+            "can_delete": True,
+        })
+
+    # Nếu có file trong DB mà chưa có trên đĩa
+    for fname, d in db_docs.items():
+        if fname not in seen:
+            doc_list.append({
+                "filename": fname,
+                "size_kb": d["size_kb"],
+                "can_delete": True,
+            })
 
     return {
         "total_chunks": chunk_count,
@@ -832,15 +895,15 @@ async def api_upload_document(
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
 ):
-    """Tải lên file tài liệu .docx mới, trích xuất text, chunking và nhúng thẳng vào ChromaDB."""
+    """Tải lên file tài liệu .docx mới, lưu vào folder tailieu/, nhúng ChromaDB và lưu Database vĩnh viễn."""
     if not file.filename.lower().endswith(".docx"):
         raise HTTPException(status_code=400, detail="Chỉ hỗ trợ định dạng file tài liệu Microsoft Word (.docx)")
 
     os.makedirs(DOCUMENTS_DIR, exist_ok=True)
     save_path = os.path.join(DOCUMENTS_DIR, file.filename)
 
+    content = await file.read()
     with open(save_path, "wb") as buffer:
-        content = await file.read()
         buffer.write(content)
 
     # Đọc và chia nhỏ tài liệu
@@ -856,8 +919,14 @@ async def api_upload_document(
     )
     chunks = text_splitter.split_text(text)
 
-    # Nhúng vào ChromaDB
+    # Nhúng vào ChromaDB (xóa chunks cũ của file này nếu có để cập nhật mới)
     ingested_at = datetime.now().isoformat()
+    if vector_store and hasattr(vector_store, "_collection"):
+        try:
+            vector_store._collection.delete(where={"source": file.filename})
+        except Exception:
+            pass
+
     metadatas = [
         {"source": file.filename, "chunk_id": i, "ingested_at": ingested_at, "type": "uploaded_doc"}
         for i in range(len(chunks))
@@ -867,12 +936,53 @@ async def api_upload_document(
     if vector_store:
         vector_store.add_texts(texts=chunks, metadatas=metadatas, ids=ids)
 
+    # Lưu file nhị phân vào Database để bảo toàn qua các lần deploy Render
+    fsize_kb = round(len(content) / 1024, 1)
+    save_uploaded_document(file.filename, content, fsize_kb, len(chunks))
+
     return {
         "success": True,
         "filename": file.filename,
         "chunks_added": len(chunks),
-        "message": f"Đã nạp thành công tài liệu '{file.filename}' ({len(chunks)} chunks) trực tiếp vào ChromaDB!",
+        "message": f"Đã lưu vào thư mục tailieu/ và nạp thành công '{file.filename}' ({len(chunks)} chunks) vào VectorDB!",
     }
+
+
+@app.delete("/api/admin/knowledge/{filename}")
+async def api_delete_document(
+    filename: str,
+    user: dict = Depends(get_current_user),
+):
+    """Xóa tài liệu khỏi folder tailieu/, gỡ khỏi ChromaDB và Database."""
+    # 1. Xóa trong database
+    delete_uploaded_document(filename)
+
+    # 2. Xóa file trong folder tailieu/
+    fpath = os.path.join(DOCUMENTS_DIR, filename)
+    file_deleted = False
+    if os.path.exists(fpath):
+        try:
+            os.remove(fpath)
+            file_deleted = True
+        except Exception as e:
+            print(f"Lỗi xóa file {fpath}: {e}")
+
+    # 3. Gỡ các vector chunks tương ứng khỏi ChromaDB
+    chunks_deleted = False
+    if vector_store and hasattr(vector_store, "_collection"):
+        try:
+            vector_store._collection.delete(where={"source": filename})
+            chunks_deleted = True
+        except Exception as e:
+            print(f"Lỗi gỡ chunks ChromaDB cho {filename}: {e}")
+
+    return {
+        "success": True,
+        "message": f"Đã xóa vĩnh viễn tài liệu '{filename}' khỏi folder tailieu/ và gỡ toàn bộ tri thức khỏi VectorDB!",
+        "file_deleted": file_deleted,
+        "chunks_deleted": chunks_deleted,
+    }
+
 
 
 # ============================================================
