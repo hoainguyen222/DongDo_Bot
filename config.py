@@ -32,7 +32,7 @@ CHROMA_COLLECTION_NAME = "dongdo_knowledge"
 # ============================================================
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 200
-RETRIEVER_K = 5  # Số lượng chunks truy xuất
+RETRIEVER_K = 10  # Số lượng chunks truy xuất (tăng lên 10 để bao quát đầy đủ tri thức)
 
 # ============================================================
 # Conversation Memory
