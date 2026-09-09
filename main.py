@@ -326,6 +326,33 @@ async def lifespan(app: FastAPI):
     except Exception as se:
         print(f"⚠️ Lỗi đồng bộ tài liệu từ Database: {se}")
 
+    # 3.2. Quét toàn bộ file trong tailieu/ và bù chunks nếu thiếu trong VectorDB
+    try:
+        docx_files = glob.glob(os.path.join(DOCUMENTS_DIR, "*.docx"))
+        for fpath in docx_files:
+            fname = os.path.basename(fpath)
+            if vector_store:
+                existing_chunks = vector_store._collection.get(where={"source": fname})
+                if not existing_chunks or not existing_chunks.get("ids"):
+                    doc_text = extract_text_from_docx(fpath)
+                    if doc_text and doc_text.strip():
+                        ts = RecursiveCharacterTextSplitter(
+                            chunk_size=CHUNK_SIZE,
+                            chunk_overlap=CHUNK_OVERLAP,
+                            length_function=len,
+                            separators=["\n\n", "\n", ". ", ", ", " ", ""],
+                        )
+                        d_chunks = ts.split_text(doc_text)
+                        d_metas = [
+                            {"source": fname, "chunk_id": i, "ingested_at": datetime.now().isoformat(), "type": "knowledge_base"}
+                            for i in range(len(d_chunks))
+                        ]
+                        d_ids = [f"scan_sync_{int(datetime.now().timestamp())}_{i}" for i in range(len(d_chunks))]
+                        vector_store.add_texts(texts=d_chunks, metadatas=d_metas, ids=d_ids)
+                        print(f"   ⚡ Đã nạp bổ sung {len(d_chunks)} chunks của tài liệu '{fname}' vào VectorDB")
+    except Exception as se:
+        print(f"⚠️ Lỗi quét tài liệu tailieu/: {se}")
+
     # 4. Khởi tạo LLM
     current_model = get_setting("llm_model", LLM_MODEL)
     current_temp = float(get_setting("temperature", str(LLM_TEMPERATURE)))
