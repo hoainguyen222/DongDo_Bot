@@ -437,6 +437,12 @@ async function resumeAI() {
     if (!activeSessionId) return;
     if (!confirm('Bạn có chắc muốn bật lại AI để hỗ trợ tiếp cuộc hội thoại này?\n\nAI sẽ tự động trả lời các câu hỏi tiếp theo của khách hàng.')) return;
 
+    const btn = document.getElementById('btn-resume-ai');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = '⏳ Đang Bật Lại AI...';
+    }
+
     try {
         const res = await fetch(`/api/admin/cases/${activeSessionId}/resume-ai`, {
             method: 'POST',
@@ -444,14 +450,25 @@ async function resumeAI() {
         });
 
         if (res.ok) {
+            const data = await res.json().catch(() => ({}));
             loadCasesList();
             loadActiveCaseMessages(activeSessionId);
+            if (data.answered_pending) {
+                alert('✅ Đã bật lại AI thành công! AI đã tự động giải đáp câu hỏi đang chờ của khách hàng.');
+            } else {
+                alert('✅ Đã bật lại AI thành công! AI sẽ tự động trả lời các câu hỏi tiếp theo của khách hàng.');
+            }
         } else {
             const data = await res.json().catch(() => ({}));
             alert('Lỗi: ' + (data.detail || 'Không thể bật lại AI'));
         }
     } catch (err) {
         alert('Lỗi bật lại AI: ' + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = '🤖 Bật Lại AI';
+        }
     }
 }
 

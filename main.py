@@ -615,11 +615,34 @@ async def api_resume_ai(
     upsert_chat_case(session_id, status="AI_ACTIVE", assigned_cs=cs_name, force_status=True)
 
     # Ghi tin nhắn thông báo vào luồng chat cho KH biết
-    notice_msg = f"🤖 Chuyên viên {cs_name} đã bật lại AI hỗ trợ. Anh/chị có thể tiếp tục đặt câu hỏi, AI sẽ tư vấn cho anh/chị ạ."
+    notice_msg = f"🤖 Chuyên viên {cs_name} đã bật lại AI hỗ trợ. AI sẽ tiếp tục hỗ trợ giải đáp thắc mắc cho anh/chị ạ."
     save_message(session_id, "human_cs", notice_msg, username=user.get("username"))
     add_to_conversation(session_id, "human_cs", notice_msg)
 
-    return {"success": True, "message": f"Đã bật lại AI cho case {session_id}"}
+    # Tự động giải đáp câu hỏi đang chờ của khách hàng nếu có
+    history = get_session_history(session_id)
+    answered_pending = False
+    ai_reply_preview = ""
+    if len(history) >= 2:
+        last_client_msg = history[-2]  # Tin nhắn trước notice_msg
+        if last_client_msg.get("role") == "user":
+            pending_query = (last_client_msg.get("content") or "").strip()
+            if pending_query and llm is not None and vector_store is not None:
+                try:
+                    reply, sources, is_fallback = await generate_response(pending_query, session_id)
+                    answered_pending = True
+                    ai_reply_preview = reply[:120]
+                    if is_fallback:
+                        upsert_chat_case(session_id, status="NEEDS_HUMAN_CS", last_user_query=pending_query, force_status=True)
+                except Exception as e:
+                    print(f"❌ Error auto-answering pending query on resume-ai: {e}")
+
+    return {
+        "success": True,
+        "message": f"Đã bật lại AI cho case {session_id}",
+        "answered_pending": answered_pending,
+        "ai_reply": ai_reply_preview,
+    }
 
 
 @app.post("/api/admin/cases/{session_id}/resolve")

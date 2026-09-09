@@ -372,7 +372,7 @@
         }
     }
 
-    const renderedCsMsgKeys = new Set();
+    const renderedMsgSignatures = new Set();
 
     function startCSPolling() {
         if (csPollTimer) return;
@@ -392,13 +392,15 @@
                     resetStatusBadge();
                 }
 
-                // Render tin nhắn từ chuyên viên CSKH mà chưa hiển thị
+                // Render tin nhắn từ chuyên viên CSKH hoặc từ AI (khi resume-ai tự động trả lời)
                 msgs.forEach((m) => {
-                    if (m.role === 'human_cs') {
-                        const key = `${m.timestamp || ''}_${m.content}`;
-                        if (!renderedCsMsgKeys.has(key)) {
-                            renderedCsMsgKeys.add(key);
-                            appendMessage('human_cs', m.content);
+                    if (m.role === 'human_cs' || m.role === 'assistant') {
+                        const text = (m.content || '').trim();
+                        const timeKey = `${m.timestamp || ''}_${m.role}_${text}`;
+                        if (!renderedMsgSignatures.has(timeKey) && !renderedMsgSignatures.has(text)) {
+                            renderedMsgSignatures.add(timeKey);
+                            renderedMsgSignatures.add(text);
+                            appendMessage(m.role, m.content);
                         }
                     }
                 });
@@ -409,6 +411,10 @@
     }
 
     function appendMessage(role, content, sources = []) {
+        if (content) {
+            renderedMsgSignatures.add(content.trim());
+        }
+
         const row = document.createElement('div');
         row.className = `message-row ${role}`;
 
