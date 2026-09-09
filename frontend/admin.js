@@ -362,7 +362,8 @@ async function loadActiveCaseMessages(sessionId) {
 
         msgContainer.innerHTML = messages.map((m) => `
             <div class="msg-bubble ${m.role}">
-                <div><strong>${getRoleLabel(m.role)}:</strong> ${escapeHtml(m.content)}</div>
+                <div style="margin-bottom: 4px;"><strong>${getRoleLabel(m.role)}:</strong></div>
+                <div class="msg-body-content">${formatMessage(m.content)}</div>
                 <span class="msg-meta">${formatTime(m.timestamp)}</span>
             </div>
         `).join('');
@@ -805,7 +806,10 @@ async function loadKnowledgeSummary() {
                 <td>📄 <strong>${escapeHtml(d.filename)}</strong></td>
                 <td>${d.size_kb} KB</td>
                 <td><span class="status-badge RESOLVED" style="color:#10b981;border-color:rgba(16,185,129,0.3);">Đã Embed Index</span></td>
-                <td style="text-align: center;">
+                <td style="text-align: center; white-space: nowrap;">
+                    <button class="btn-action primary btn-sm" onclick="downloadKnowledgeDoc('${escapeHtml(d.filename)}')" title="Tải file .docx về máy tính" style="margin-right: 6px;">
+                        📥 Tải Về
+                    </button>
                     <button class="btn-action danger btn-sm" onclick="deleteKnowledgeDoc('${escapeHtml(d.filename)}')" title="Xóa khỏi tailieu/, Database và ChromaDB">
                         🗑️ Xóa
                     </button>
@@ -814,6 +818,32 @@ async function loadKnowledgeSummary() {
         `).join('');
     } catch (err) {
         console.error('Error loading knowledge summary:', err);
+    }
+}
+
+async function downloadKnowledgeDoc(filename) {
+    try {
+        const token = getAuthToken();
+        const res = await fetch(`/api/admin/knowledge/${encodeURIComponent(filename)}/download`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            alert(`❌ Không thể tải file: ${err.detail || res.statusText}`);
+            return;
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error('Error downloading doc:', err);
+        alert(`❌ Lỗi tải file: ${err.message}`);
     }
 }
 
@@ -838,6 +868,46 @@ async function deleteKnowledgeDoc(filename) {
         console.error('Error deleting doc:', err);
         alert(`❌ Lỗi kết nối khi xóa: ${err.message}`);
     }
+}
+
+function formatMessage(text) {
+    if (!text) return '';
+    let html = text.trim();
+
+    html = html
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    html = html.replace(/^(\s*[-*_]){3,}\s*$/gm, '<hr class="msg-divider">');
+    html = html.replace(/^####\s+(.+)$/gm, '<h5 class="msg-h5">$1</h5>');
+    html = html.replace(/^###\s+(.+)$/gm, '<h4 class="msg-h4">$1</h4>');
+    html = html.replace(/^##\s+(.+)$/gm, '<h3 class="msg-h3">$1</h3>');
+    html = html.replace(/^#\s+(.+)$/gm, '<h2 class="msg-h2">$1</h2>');
+
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+    html = html.replace(/(^|[^\*])\*([^\*\n]+?)\*([^\*]|$)/g, '$1<em>$2</em>$3');
+    html = html.replace(/(^|[^_])_([^_\n]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
+
+    html = html.replace(/^[\*\-•]\s+(.+)$/gm, '<li>$1</li>');
+    html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul class="msg-list">$1</ul>');
+
+    html = html.replace(/^\d+\.\s+(.+)$/gm, '<li class="num-li">$1</li>');
+    html = html.replace(/((?:<li class="num-li">.*<\/li>\n?)+)/g, '<ol class="msg-ol">$1</ol>');
+
+    const blocks = html.split(/\n{2,}/);
+    const processedBlocks = blocks.map((block) => {
+        const b = block.trim();
+        if (!b) return '';
+        if (/^<(h[2-5]|ul|ol|hr|div|table|blockquote)/i.test(b)) {
+            return b.replace(/\n/g, '<br>');
+        }
+        return `<p>${b.replace(/\n/g, '<br>')}</p>`;
+    });
+
+    html = processedBlocks.filter(Boolean).join('');
+    return html;
 }
 
 function setupDropzone() {

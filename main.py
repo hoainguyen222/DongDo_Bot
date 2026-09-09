@@ -198,7 +198,7 @@ def retrieve_context(query: str) -> tuple[str, list[str]]:
     return context, list(sources)
 
 
-async def generate_response(query: str, session_id: str) -> tuple[str, list[str], bool]:
+async def generate_response(query: str, session_id: str, save_user_msg: bool = True) -> tuple[str, list[str], bool]:
     """
     Pipeline chính: Retrieve → Context → LLM → Response.
     Trả về (reply, sources, is_fallback)
@@ -232,9 +232,10 @@ Hãy thực hiện đúng 2 bước: Xin lỗi + Chuyển giao chuyên viên CSK
     reply = response.content
 
     # Update memory & database
-    add_to_conversation(session_id, "user", query)
+    if save_user_msg:
+        add_to_conversation(session_id, "user", query)
+        save_message(session_id, "user", query)
     add_to_conversation(session_id, "assistant", reply)
-    save_message(session_id, "user", query)
     save_message(session_id, "assistant", reply)
 
     # Kiểm tra xem có kích hoạt fallback hay không
@@ -483,45 +484,100 @@ async def chat(
 
     try:
         # ── Kiểm tra trạng thái case trước khi gọi AI ──
-        # Nếu case đang ở trạng thái chờ CSKH hoặc CSKH đang xử lý → AI KHÔNG trả lời
         existing_case = get_chat_case(session_id)
-        if existing_case and existing_case.get("status") in ("NEEDS_HUMAN_CS", "HUMAN_CS_ACTIVE"):
-            # Chỉ lưu tin nhắn KH vào lịch sử, KHÔNG gọi AI
+        current_status = existing_case.get("status") if existing_case else "AI_ACTIVE"
+        assigned_cs = existing_case.get("assigned_cs") if existing_case else None
+
+        # 1. Chuyên viên CSKH đang trực tiếp trò chuyện với KH (HUMAN_CS_ACTIVE): AI tuyệt đối không can thiệp
+        if current_status == "HUMAN_CS_ACTIVE":
             save_message(session_id, "user", clean_msg)
             add_to_conversation(session_id, "user", clean_msg)
-            # Cập nhật last_user_query nhưng GIỮ NGUYÊN status hiện tại
-            current_status = existing_case["status"]
-            assigned_cs = existing_case.get("assigned_cs")
             upsert_chat_case(
                 session_id=session_id,
                 customer_name=customer_display_name,
-                status=current_status,
+                status="HUMAN_CS_ACTIVE",
                 last_user_query=clean_msg,
             )
-
-            if current_status == "HUMAN_CS_ACTIVE" and assigned_cs:
-                wait_msg = f"Dạ anh/chị vui lòng chờ, chuyên viên {assigned_cs} đang hỗ trợ trực tiếp ạ."
-            else:
-                wait_msg = "Dạ anh/chị vui lòng chờ trong giây lát, chuyên viên CSKH sẽ hỗ trợ anh/chị ngay ạ."
-
+            wait_msg = f"Dạ anh/chị vui lòng chờ, chuyên viên {assigned_cs} đang hỗ trợ trực tiếp ạ." if assigned_cs else "Dạ anh/chị vui lòng chờ trong giây lát, chuyên viên CSKH đang hỗ trợ anh/chị ạ."
             return ChatResponse(
                 reply=wait_msg,
                 session_id=session_id,
                 sources=[],
                 waiting_for_cs=True,
-                status=current_status,
+                status="HUMAN_CS_ACTIVE",
                 cs_agent=assigned_cs,
                 ai_locked=True,
             )
 
-        # ── Trạng thái bình thường: AI trả lời ──
+        # 2. Case đang "Chờ CSKH" (NEEDS_HUMAN_CS): CSKH chưa trả lời, KH hỏi thêm câu khác
+        # Kiểm tra xem câu hỏi mới có trong Cơ sở tri thức hay không
+        if current_status == "NEEDS_HUMAN_CS":
+            context, sources = retrieve_context(clean_msg)
+            if context and context.strip():
+                # Tìm thấy tri thức trong tài liệu! AI trả lời ngay và chuyển case về AI_ACTIVE ("AI đang tư vấn")
+                if llm is not None:
+                    reply, sources, is_fallback = await generate_response(clean_msg, session_id, save_user_msg=True)
+                    if not is_fallback:
+                        upsert_chat_case(
+                            session_id=session_id,
+                            customer_name=customer_display_name,
+                            status="AI_ACTIVE",
+                            last_user_query=clean_msg,
+                            force_status=True,
+                        )
+                        return ChatResponse(
+                            reply=reply,
+                            session_id=session_id,
+                            sources=sources,
+                            waiting_for_cs=False,
+                            status="AI_ACTIVE",
+                            cs_agent=None,
+                            ai_locked=False,
+                        )
+                    else:
+                        upsert_chat_case(
+                            session_id=session_id,
+                            customer_name=customer_display_name,
+                            status="NEEDS_HUMAN_CS",
+                            last_user_query=clean_msg,
+                        )
+                        return ChatResponse(
+                            reply=reply,
+                            session_id=session_id,
+                            sources=sources,
+                            waiting_for_cs=True,
+                            status="NEEDS_HUMAN_CS",
+                            cs_agent=None,
+                            ai_locked=False,
+                        )
+
+            # Không tìm thấy thông tin trong kho tri thức: tiếp tục giữ chờ CSKH
+            save_message(session_id, "user", clean_msg)
+            add_to_conversation(session_id, "user", clean_msg)
+            upsert_chat_case(
+                session_id=session_id,
+                customer_name=customer_display_name,
+                status="NEEDS_HUMAN_CS",
+                last_user_query=clean_msg,
+            )
+            return ChatResponse(
+                reply="Dạ anh/chị vui lòng chờ trong giây lát, chuyên viên CSKH sẽ hỗ trợ anh/chị ngay ạ.",
+                session_id=session_id,
+                sources=[],
+                waiting_for_cs=True,
+                status="NEEDS_HUMAN_CS",
+                cs_agent=None,
+                ai_locked=True,
+            )
+
+        # 3. Trạng thái bình thường: AI trả lời
         if llm is None:
             raise HTTPException(status_code=503, detail="LLM chưa được khởi tạo. Hãy set ANTHROPIC_API_KEY.")
 
         if vector_store is None:
             raise HTTPException(status_code=503, detail="Vector store chưa được khởi tạo.")
 
-        reply, sources, is_fallback = await generate_response(clean_msg, session_id)
+        reply, sources, is_fallback = await generate_response(clean_msg, session_id, save_user_msg=True)
 
         case_status = "NEEDS_HUMAN_CS" if is_fallback else "AI_ACTIVE"
         upsert_chat_case(
@@ -531,16 +587,13 @@ async def chat(
             last_user_query=clean_msg,
         )
 
-        updated_case = get_chat_case(session_id)
-        assigned_cs = updated_case.get("assigned_cs") if updated_case else None
-
         return ChatResponse(
             reply=reply,
             session_id=session_id,
             sources=sources,
             waiting_for_cs=is_fallback,
             status=case_status,
-            cs_agent=assigned_cs,
+            cs_agent=None,
             ai_locked=False,
         )
     except Exception as e:
@@ -671,7 +724,7 @@ async def api_resume_ai(
             pending_query = (last_client_msg.get("content") or "").strip()
             if pending_query and llm is not None and vector_store is not None:
                 try:
-                    reply, sources, is_fallback = await generate_response(pending_query, session_id)
+                    reply, sources, is_fallback = await generate_response(pending_query, session_id, save_user_msg=False)
                     answered_pending = True
                     ai_reply_preview = reply[:120]
                     if is_fallback:
@@ -982,6 +1035,41 @@ async def api_delete_document(
         "file_deleted": file_deleted,
         "chunks_deleted": chunks_deleted,
     }
+
+
+@app.get("/api/admin/knowledge/{filename}/download")
+async def api_download_document(
+    filename: str,
+    token: str = None,
+    authorization: str = Header(None),
+):
+    """Tải file tài liệu về máy (trực tiếp từ đĩa tailieu/ hoặc trích từ Database)."""
+    auth_token = None
+    if authorization and authorization.startswith("Bearer "):
+        auth_token = authorization.split(" ")[1]
+    elif token:
+        auth_token = token
+
+    user = verify_session(auth_token) if auth_token else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Chưa xác thực hoặc phiên làm việc hết hạn")
+
+    fpath = os.path.join(DOCUMENTS_DIR, filename)
+    if not os.path.exists(fpath):
+        fbytes = get_uploaded_document_bytes(filename)
+        if fbytes:
+            os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+            with open(fpath, "wb") as f:
+                f.write(fbytes)
+        else:
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy tài liệu '{filename}'")
+
+    return FileResponse(
+        path=fpath,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
 
 
 

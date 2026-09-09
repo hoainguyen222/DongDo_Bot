@@ -373,6 +373,7 @@
     }
 
     const renderedMsgSignatures = new Set();
+    const renderedMsgIds = new Set();
 
     function startCSPolling() {
         if (csPollTimer) return;
@@ -397,11 +398,15 @@
                     if (m.role === 'human_cs' || m.role === 'assistant') {
                         const text = (m.content || '').trim();
                         const timeKey = `${m.timestamp || ''}_${m.role}_${text}`;
-                        if (!renderedMsgSignatures.has(timeKey) && !renderedMsgSignatures.has(text)) {
-                            renderedMsgSignatures.add(timeKey);
-                            renderedMsgSignatures.add(text);
-                            appendMessage(m.role, m.content);
-                        }
+                        const idKey = m.id ? `msg_${m.id}` : null;
+
+                        if (idKey && renderedMsgIds.has(idKey)) return;
+                        if (renderedMsgSignatures.has(timeKey) || renderedMsgSignatures.has(text)) return;
+
+                        if (idKey) renderedMsgIds.add(idKey);
+                        renderedMsgSignatures.add(timeKey);
+                        renderedMsgSignatures.add(text);
+                        appendMessage(m.role, m.content, [], idKey);
                     }
                 });
             } catch (e) {
@@ -410,9 +415,14 @@
         }, 3000);
     }
 
-    function appendMessage(role, content, sources = []) {
+    function appendMessage(role, content, sources = [], msgId = null) {
         if (content) {
-            renderedMsgSignatures.add(content.trim());
+            const cleanText = content.trim();
+            renderedMsgSignatures.add(cleanText);
+            renderedMsgSignatures.add(`${role}_${cleanText}`);
+        }
+        if (msgId) {
+            renderedMsgIds.add(msgId);
         }
 
         const row = document.createElement('div');
@@ -457,7 +467,8 @@
     }
 
     function formatMessage(text) {
-        let html = text;
+        if (!text) return '';
+        let html = text.trim();
 
         // Escape HTML
         html = html
@@ -465,29 +476,43 @@
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
 
+        // Horizontal rules: --- or *** or ___
+        html = html.replace(/^(\s*[-*_]){3,}\s*$/gm, '<hr class="msg-divider">');
+
+        // Headers: ####, ###, ##, #
+        html = html.replace(/^####\s+(.+)$/gm, '<h5 class="msg-h5">$1</h5>');
+        html = html.replace(/^###\s+(.+)$/gm, '<h4 class="msg-h4">$1</h4>');
+        html = html.replace(/^##\s+(.+)$/gm, '<h3 class="msg-h3">$1</h3>');
+        html = html.replace(/^#\s+(.+)$/gm, '<h2 class="msg-h2">$1</h2>');
+
         // Bold: **text** or __text__
         html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
 
         // Italic: *text* or _text_
-        html = html.replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+        html = html.replace(/(^|[^\*])\*([^\*\n]+?)\*([^\*]|$)/g, '$1<em>$2</em>$3');
+        html = html.replace(/(^|[^_])_([^_\n]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
 
-        // Bullet lists: - item or • item
-        html = html.replace(/^[\-•]\s+(.+)$/gm, '<li>$1</li>');
-        html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+        // Bullet lists: - item or * item or • item
+        html = html.replace(/^[\*\-•]\s+(.+)$/gm, '<li>$1</li>');
+        html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul class="msg-list">$1</ul>');
 
         // Numbered lists: 1. item
-        html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+        html = html.replace(/^\d+\.\s+(.+)$/gm, '<li class="num-li">$1</li>');
+        html = html.replace(/((?:<li class="num-li">.*<\/li>\n?)+)/g, '<ol class="msg-ol">$1</ol>');
 
-        // Line breaks
-        html = html.replace(/\n\n/g, '</p><p>');
-        html = html.replace(/\n/g, '<br>');
+        // Paragraphs & Line Breaks:
+        const blocks = html.split(/\n{2,}/);
+        const processedBlocks = blocks.map((block) => {
+            const b = block.trim();
+            if (!b) return '';
+            if (/^<(h[2-5]|ul|ol|hr|div|table|blockquote)/i.test(b)) {
+                return b.replace(/\n/g, '<br>');
+            }
+            return `<p>${b.replace(/\n/g, '<br>')}</p>`;
+        });
 
-        // Wrap in paragraph if not already
-        if (!html.startsWith('<')) {
-            html = `<p>${html}</p>`;
-        }
-
+        html = processedBlocks.filter(Boolean).join('');
         return html;
     }
 

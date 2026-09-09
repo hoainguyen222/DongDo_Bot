@@ -555,14 +555,14 @@ def get_session_history(session_id: str) -> list[dict]:
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            f"SELECT role, content, timestamp, username FROM chat_history "
-            f"WHERE session_id = {ph} ORDER BY timestamp",
+            f"SELECT role, content, timestamp, username, id FROM chat_history "
+            f"WHERE session_id = {ph} ORDER BY id ASC",
             (session_id,),
         )
         rows = cursor.fetchall()
 
     return [
-        {"role": row[0], "content": row[1], "timestamp": row[2], "username": row[3]}
+        {"role": row[0], "content": row[1], "timestamp": row[2], "username": row[3], "id": row[4]}
         for row in rows
     ]
 

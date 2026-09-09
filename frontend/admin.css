@@ -919,6 +919,48 @@ body {
     text-align: right;
 }
 
+.msg-body-content .msg-h2,
+.msg-body-content .msg-h3 {
+    color: #c084fc;
+    font-size: 0.96rem;
+    font-weight: 700;
+    margin: 10px 0 4px 0;
+    line-height: 1.4;
+}
+
+.msg-body-content .msg-h4,
+.msg-body-content .msg-h5 {
+    color: #93c5fd;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin: 8px 0 3px 0;
+    line-height: 1.4;
+}
+
+.msg-body-content .msg-divider {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    margin: 10px 0;
+}
+
+.msg-body-content ul,
+.msg-body-content ol {
+    margin: 6px 0;
+    padding-left: 18px;
+}
+
+.msg-body-content li {
+    margin-bottom: 3px;
+}
+
+.msg-body-content p {
+    margin-bottom: 6px;
+}
+
+.msg-body-content p:last-child {
+    margin-bottom: 0;
+}
+
 .detail-reply-box {
     padding: 14px 18px;
     border-top: 1px solid var(--border-subtle);

@@ -770,6 +770,30 @@ body {
     font-weight: 600;
 }
 
+.message-row.assistant .message-content .msg-h2,
+.message-row.assistant .message-content .msg-h3 {
+    color: #c084fc;
+    font-size: 1.02rem;
+    font-weight: 700;
+    margin: 14px 0 6px 0;
+    line-height: 1.4;
+}
+
+.message-row.assistant .message-content .msg-h4,
+.message-row.assistant .message-content .msg-h5 {
+    color: #93c5fd;
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin: 10px 0 4px 0;
+    line-height: 1.4;
+}
+
+.message-row.assistant .message-content .msg-divider {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    margin: 12px 0;
+}
+
 .message-row.assistant .message-content ul,
 .message-row.assistant .message-content ol {
     margin: 8px 0;
