@@ -328,15 +328,22 @@
                 sessionStorage.setItem('dongdo_client_session_id', sessionId);
             }
 
-            // Add response message
-            const role = data.status === 'HUMAN_CS_ACTIVE' ? 'human_cs' : 'assistant';
-            appendMessage(role, data.reply, data.sources);
-            displayedMessageCount++;
-
-            // Check if waiting for CS
-            if (data.waiting_for_cs || data.status === 'NEEDS_HUMAN_CS' || data.status === 'HUMAN_CS_ACTIVE') {
+            // Add response message - phân biệt tin nhắn AI vs thông báo chờ CSKH
+            if (data.ai_locked) {
+                // AI bị khóa: hiển thị thông báo chờ CSKH
+                appendMessage('notice', data.reply);
                 updateCSStatusBadge(data.cs_agent ? `Chuyên viên ${data.cs_agent} đang kết nối` : 'Đang chuyển giao Chuyên viên CSKH');
                 startCSPolling();
+            } else {
+                // AI trả lời bình thường (kể cả câu trả lời báo chuyển giao CSKH)
+                appendMessage('assistant', data.reply, data.sources);
+                displayedMessageCount++;
+
+                // Check if this response triggered fallback (AI mới chuyển sang chờ CSKH)
+                if (data.waiting_for_cs) {
+                    updateCSStatusBadge('Đang chuyển giao Chuyên viên CSKH');
+                    startCSPolling();
+                }
             }
         } catch (error) {
             removeTypingIndicator(typingEl);
@@ -365,6 +372,8 @@
         }
     }
 
+    const renderedCsMsgKeys = new Set();
+
     function startCSPolling() {
         if (csPollTimer) return;
         csPollTimer = setInterval(async () => {
@@ -378,16 +387,21 @@
                     updateCSStatusBadge(`Chuyên viên CSKH: ${data.assigned_cs}`);
                 }
 
-                // If new messages from human CS exist that haven't been rendered
-                if (msgs.length > displayedMessageCount) {
-                    const newMsgs = msgs.slice(displayedMessageCount);
-                    newMsgs.forEach((m) => {
-                        if (m.role === 'human_cs') {
+                // Nếu case quay lại AI_ACTIVE (CSKH đã bật lại AI), khôi phục badge
+                if (data.status === 'AI_ACTIVE') {
+                    resetStatusBadge();
+                }
+
+                // Render tin nhắn từ chuyên viên CSKH mà chưa hiển thị
+                msgs.forEach((m) => {
+                    if (m.role === 'human_cs') {
+                        const key = `${m.timestamp || ''}_${m.content}`;
+                        if (!renderedCsMsgKeys.has(key)) {
+                            renderedCsMsgKeys.add(key);
                             appendMessage('human_cs', m.content);
                         }
-                    });
-                    displayedMessageCount = msgs.length;
-                }
+                    }
+                });
             } catch (e) {
                 console.error('CS Polling error:', e);
             }
@@ -405,6 +419,9 @@
         } else if (role === 'human_cs') {
             avatar.innerHTML = '👨‍💼';
             avatar.title = 'Chuyên viên CSKH Đông Đô Partners';
+        } else if (role === 'notice') {
+            avatar.innerHTML = '🔔';
+            avatar.title = 'Thông báo hệ thống';
         } else {
             avatar.innerHTML = '🤖';
             avatar.title = 'Chuyên viên CSKH Đông Đô';

@@ -834,6 +834,12 @@ body {
     box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
 }
 
+.btn-action.ai-resume {
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    color: #ffffff;
+    box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3);
+}
+
 .btn-action:hover {
     transform: translateY(-1px);
     filter: brightness(1.1);
@@ -880,6 +886,17 @@ body {
     border: 1px solid rgba(16, 185, 129, 0.4);
     color: #ecfdf5;
     border-bottom-left-radius: var(--radius-sm);
+}
+
+.msg-bubble.notice,
+.msg-bubble.system {
+    align-self: center;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px dashed rgba(245, 158, 11, 0.35);
+    color: #fbbf24;
+    font-size: 0.82rem;
+    font-style: italic;
+    border-radius: var(--radius-md);
 }
 
 .msg-meta {

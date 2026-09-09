@@ -612,8 +612,13 @@ def upsert_chat_case(
     status: str = "AI_ACTIVE",
     last_user_query: str = None,
     assigned_cs: str = None,
+    force_status: bool = False,
 ):
-    """Tạo hoặc cập nhật trạng thái của case hội thoại."""
+    """Tạo hoặc cập nhật trạng thái của case hội thoại.
+    
+    force_status=True: Bỏ qua luật bảo vệ trạng thái (dùng khi CSKH chủ ý thay đổi: resume-ai, resolve, take).
+    force_status=False: Áp dụng luật bảo vệ (dùng khi tự động cập nhật từ /chat).
+    """
     ph = _placeholder()
     now = datetime.now().isoformat()
     with get_connection() as conn:
@@ -626,10 +631,17 @@ def upsert_chat_case(
             current_status = row[1]
             current_assigned = row[2]
 
-            # Giữ trạng thái HUMAN_CS_ACTIVE nếu đã có người nhận
+            # ── Bảo vệ trạng thái case khi CSKH đang xử lý hoặc đang chờ CSKH ──
             new_status = status
-            if current_status == "HUMAN_CS_ACTIVE" and status == "NEEDS_HUMAN_CS":
-                new_status = "HUMAN_CS_ACTIVE"
+            if not force_status:
+                if current_status == "HUMAN_CS_ACTIVE":
+                    # Khi CSKH đang xử lý: chặn mọi thay đổi tự động → giữ nguyên HUMAN_CS_ACTIVE
+                    if status not in ("RESOLVED", "HUMAN_CS_ACTIVE"):
+                        new_status = "HUMAN_CS_ACTIVE"
+                elif current_status == "NEEDS_HUMAN_CS":
+                    # Khi đang chờ CSKH: chỉ cho phép CSKH tiếp nhận (HUMAN_CS_ACTIVE) hoặc đóng (RESOLVED)
+                    if status not in ("HUMAN_CS_ACTIVE", "RESOLVED"):
+                        new_status = "NEEDS_HUMAN_CS"
 
             new_assigned = assigned_cs if assigned_cs is not None else current_assigned
 

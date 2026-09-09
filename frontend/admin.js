@@ -324,6 +324,39 @@ async function loadActiveCaseMessages(sessionId) {
         document.getElementById('detail-status-tag').innerText = getStatusLabel(data.status);
         document.getElementById('detail-cs-tag').innerText = data.assigned_cs ? `CS: ${data.assigned_cs}` : 'Chưa phân công';
 
+        // Cập nhật trạng thái và hiển thị các nút thao tác theo trạng thái case
+        const btnTake = document.getElementById('btn-take-case');
+        const btnResumeAI = document.getElementById('btn-resume-ai');
+        const btnResolve = document.getElementById('btn-resolve-case');
+
+        if (btnTake && btnResumeAI && btnResolve) {
+            if (data.status === 'RESOLVED') {
+                btnTake.style.display = 'none';
+                btnResumeAI.style.display = 'none';
+                btnResolve.style.display = 'none';
+            } else if (data.status === 'AI_ACTIVE') {
+                btnTake.style.display = 'inline-flex';
+                btnTake.innerText = '🚀 Tiếp Nhận Case';
+                btnTake.disabled = false;
+                btnResumeAI.style.display = 'none'; // AI đang hoạt động rồi
+                btnResolve.style.display = 'inline-flex';
+            } else if (data.status === 'HUMAN_CS_ACTIVE') {
+                btnTake.style.display = 'inline-flex';
+                btnTake.innerText = '👤 Đang Xử Lý';
+                btnTake.disabled = true;
+                btnResumeAI.style.display = 'inline-flex';
+                btnResumeAI.disabled = false;
+                btnResolve.style.display = 'inline-flex';
+            } else { // NEEDS_HUMAN_CS
+                btnTake.style.display = 'inline-flex';
+                btnTake.innerText = '🚀 Tiếp Nhận Case';
+                btnTake.disabled = false;
+                btnResumeAI.style.display = 'inline-flex';
+                btnResumeAI.disabled = false;
+                btnResolve.style.display = 'inline-flex';
+            }
+        }
+
         const msgContainer = document.getElementById('detail-messages-container');
         const messages = data.messages || [];
 
@@ -397,6 +430,28 @@ async function sendHumanReply() {
         }
     } catch (err) {
         alert('Lỗi gửi tin nhắn CSKH: ' + err);
+    }
+}
+
+async function resumeAI() {
+    if (!activeSessionId) return;
+    if (!confirm('Bạn có chắc muốn bật lại AI để hỗ trợ tiếp cuộc hội thoại này?\n\nAI sẽ tự động trả lời các câu hỏi tiếp theo của khách hàng.')) return;
+
+    try {
+        const res = await fetch(`/api/admin/cases/${activeSessionId}/resume-ai`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+        });
+
+        if (res.ok) {
+            loadCasesList();
+            loadActiveCaseMessages(activeSessionId);
+        } else {
+            const data = await res.json().catch(() => ({}));
+            alert('Lỗi: ' + (data.detail || 'Không thể bật lại AI'));
+        }
+    } catch (err) {
+        alert('Lỗi bật lại AI: ' + err.message);
     }
 }
 
@@ -874,6 +929,7 @@ function getStatusLabel(status) {
 function getRoleLabel(role) {
     if (role === 'user') return '👤 Khách hàng';
     if (role === 'human_cs') return '👨‍💼 Chuyên viên CSKH';
+    if (role === 'notice' || role === 'system') return '🔔 Hệ thống';
     return '🤖 AI Assistant';
 }
 

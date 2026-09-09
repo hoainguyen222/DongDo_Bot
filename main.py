@@ -349,6 +349,7 @@ class ChatResponse(BaseModel):
     waiting_for_cs: bool = False
     status: str = "AI_ACTIVE"
     cs_agent: str | None = None
+    ai_locked: bool = False
 
 
 class CSReplyRequest(BaseModel):
@@ -431,17 +432,50 @@ async def chat(
     if not request.message or not request.message.strip():
         raise HTTPException(status_code=400, detail="Message không được để trống")
 
-    if llm is None:
-        raise HTTPException(status_code=503, detail="LLM chưa được khởi tạo. Hãy set ANTHROPIC_API_KEY.")
-
-    if vector_store is None:
-        raise HTTPException(status_code=503, detail="Vector store chưa được khởi tạo.")
-
     session_id = request.session_id or f"session-{int(datetime.now().timestamp()*1000)}-{uuid.uuid4().hex[:6]}"
     clean_msg = request.message.strip()
     customer_display_name = user.get("full_name") or user.get("username") or "Khách hàng"
 
     try:
+        # ── Kiểm tra trạng thái case trước khi gọi AI ──
+        # Nếu case đang ở trạng thái chờ CSKH hoặc CSKH đang xử lý → AI KHÔNG trả lời
+        existing_case = get_chat_case(session_id)
+        if existing_case and existing_case.get("status") in ("NEEDS_HUMAN_CS", "HUMAN_CS_ACTIVE"):
+            # Chỉ lưu tin nhắn KH vào lịch sử, KHÔNG gọi AI
+            save_message(session_id, "user", clean_msg)
+            add_to_conversation(session_id, "user", clean_msg)
+            # Cập nhật last_user_query nhưng GIỮ NGUYÊN status hiện tại
+            current_status = existing_case["status"]
+            assigned_cs = existing_case.get("assigned_cs")
+            upsert_chat_case(
+                session_id=session_id,
+                customer_name=customer_display_name,
+                status=current_status,
+                last_user_query=clean_msg,
+            )
+
+            if current_status == "HUMAN_CS_ACTIVE" and assigned_cs:
+                wait_msg = f"Dạ anh/chị vui lòng chờ, chuyên viên {assigned_cs} đang hỗ trợ trực tiếp ạ."
+            else:
+                wait_msg = "Dạ anh/chị vui lòng chờ trong giây lát, chuyên viên CSKH sẽ hỗ trợ anh/chị ngay ạ."
+
+            return ChatResponse(
+                reply=wait_msg,
+                session_id=session_id,
+                sources=[],
+                waiting_for_cs=True,
+                status=current_status,
+                cs_agent=assigned_cs,
+                ai_locked=True,
+            )
+
+        # ── Trạng thái bình thường: AI trả lời ──
+        if llm is None:
+            raise HTTPException(status_code=503, detail="LLM chưa được khởi tạo. Hãy set ANTHROPIC_API_KEY.")
+
+        if vector_store is None:
+            raise HTTPException(status_code=503, detail="Vector store chưa được khởi tạo.")
+
         reply, sources, is_fallback = await generate_response(clean_msg, session_id)
 
         case_status = "NEEDS_HUMAN_CS" if is_fallback else "AI_ACTIVE"
@@ -452,8 +486,8 @@ async def chat(
             last_user_query=clean_msg,
         )
 
-        existing_case = get_chat_case(session_id)
-        assigned_cs = existing_case.get("assigned_cs") if existing_case else None
+        updated_case = get_chat_case(session_id)
+        assigned_cs = updated_case.get("assigned_cs") if updated_case else None
 
         return ChatResponse(
             reply=reply,
@@ -462,6 +496,7 @@ async def chat(
             waiting_for_cs=is_fallback,
             status=case_status,
             cs_agent=assigned_cs,
+            ai_locked=False,
         )
     except Exception as e:
         print(f"❌ Error in chat: {e}")
@@ -563,9 +598,28 @@ async def api_reply_case(
 
     save_message(session_id, "human_cs", clean_msg, username=user.get("username"))
     add_to_conversation(session_id, "human_cs", clean_msg)
-    upsert_chat_case(session_id, status="HUMAN_CS_ACTIVE", assigned_cs=cs_name)
+    upsert_chat_case(session_id, status="HUMAN_CS_ACTIVE", assigned_cs=cs_name, force_status=True)
 
     return {"success": True, "message": "Đã gửi tin nhắn thành công"}
+
+
+@app.post("/api/admin/cases/{session_id}/resume-ai")
+async def api_resume_ai(
+    session_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """CSKH yêu cầu AI tiếp tục tham gia trả lời trong cuộc hội thoại."""
+    cs_name = user.get("full_name") or user.get("username") or "Chuyên viên CSKH"
+
+    # Chuyển trạng thái case về AI_ACTIVE (force_status bỏ qua luật bảo vệ)
+    upsert_chat_case(session_id, status="AI_ACTIVE", assigned_cs=cs_name, force_status=True)
+
+    # Ghi tin nhắn thông báo vào luồng chat cho KH biết
+    notice_msg = f"🤖 Chuyên viên {cs_name} đã bật lại AI hỗ trợ. Anh/chị có thể tiếp tục đặt câu hỏi, AI sẽ tư vấn cho anh/chị ạ."
+    save_message(session_id, "human_cs", notice_msg, username=user.get("username"))
+    add_to_conversation(session_id, "human_cs", notice_msg)
+
+    return {"success": True, "message": f"Đã bật lại AI cho case {session_id}"}
 
 
 @app.post("/api/admin/cases/{session_id}/resolve")
