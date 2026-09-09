@@ -1179,6 +1179,7 @@ input:checked + .slider:before {
 
 .btn-upload {
     width: 100%;
+    margin-top: 16px;
     padding: 11px;
     background: var(--gradient-primary);
     border: none;
@@ -1188,11 +1189,19 @@ input:checked + .slider:before {
     font-size: 0.9rem;
     cursor: pointer;
     transition: all var(--transition-fast);
+    position: relative;
+    z-index: 2;
 }
 
 .btn-upload:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}
+
+.btn-upload:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
 }
 
 .upload-result-box {

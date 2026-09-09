@@ -264,11 +264,13 @@
                         <h3>📥 Nạp Tài Liệu Kiến Thức Mới (.docx)</h3>
                         <p>Tải lên file tài liệu Microsoft Word (.docx) chuẩn để hệ thống tự động Chunking, Vector Embedding và Nạp trực tiếp vào ChromaDB không cần khởi động lại server.</p>
 
-                        <form id="upload-form" onsubmit="handleDocUpload(event)" class="dropzone">
-                            <input type="file" id="docx-file-input" accept=".docx" required />
-                            <div class="dropzone-text">
-                                <span class="icon">📄</span>
-                                <span id="dropzone-label">Kéo thả file .docx vào đây hoặc bấm chọn file</span>
+                        <form id="upload-form" onsubmit="handleDocUpload(event)">
+                            <div class="dropzone" id="dropzone-area">
+                                <input type="file" id="docx-file-input" accept=".docx" required />
+                                <div class="dropzone-text">
+                                    <span class="icon">📄</span>
+                                    <span id="dropzone-label">Kéo thả file .docx vào đây hoặc bấm chọn file</span>
+                                </div>
                             </div>
                             <button type="submit" class="btn-upload" id="btnUploadSubmit">Tải Phân Tích &amp; Nạp Vào VectorDB 🚀</button>
                         </form>
