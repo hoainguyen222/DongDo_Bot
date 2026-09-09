@@ -267,8 +267,23 @@ Hãy thực hiện đúng 2 bước: Xin lỗi + Chuyển giao chuyên viên CSK
     save_message(session_id, "assistant", reply)
 
     # Kiểm tra xem có kích hoạt fallback hay không
-    fallback_phrase = "chuyên viên CSKH của Đông Đô sẽ trực tiếp tham gia cuộc trò chuyện để hỗ trợ bạn ngay"
-    is_fallback = (fallback_phrase.lower() in reply.lower()) or (not context)
+    fallback_signals = [
+        "chuyên viên cskh của đông đô sẽ trực tiếp tham gia",
+        "trực tiếp tham gia cuộc trò chuyện để hỗ trợ",
+        "nằm ngoài lĩnh vực chuyên môn",
+        "chưa có thông tin chi tiết về",
+        "chưa có thông tin chi tiết",
+        "không có thông tin chi tiết",
+        "không có thông tin trong hệ thống",
+        "chưa có thông tin trong hệ thống",
+        "chưa có thông tin",
+    ]
+    reply_lower = reply.lower()
+    is_fallback = any(sig in reply_lower for sig in fallback_signals) or (not context)
+
+    if is_fallback and "chuyên viên cskh của đông đô sẽ trực tiếp tham gia" not in reply_lower:
+        handover_text = "Vui lòng đợi trong giây lát, chuyên viên CSKH của Đông Đô sẽ trực tiếp tham gia cuộc trò chuyện để hỗ trợ bạn ngay."
+        reply = f"{reply.strip()}\n\n{handover_text}"
 
     return reply, sources, is_fallback
 
